@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerador SQL via PDF</title>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg-body: #f8fafc;
+      --bg-card: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --code-bg: #1e293b;
+      --code-text: #e2e8f0;
+      --success: #10b981;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-body);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+      background: var(--bg-card);
+      border-radius: 12px;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+      padding: 30px;
+    }
+
+    header {
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    h2 { font-size: 1.5rem; font-weight: 700; color: var(--text-main); margin-bottom: 5px; }
+    p.subtitle { color: var(--text-muted); font-size: 0.9rem; }
+
+    /* Inputs Section */
+    .controls {
+      display: grid;
+      grid-template-columns: 2fr 1fr auto;
+      gap: 15px;
+      align-items: end;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .input-group { display: flex; flex-direction: column; gap: 5px; }
+    label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+    
+    input[type="file"], input[type="date"] {
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: inherit;
+      background: #f1f5f9;
+      cursor: pointer;
+    }
+
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.95rem;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+    .btn-primary:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
+
+    .btn-outline {
+      background-color: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-main);
+    }
+    .btn-outline:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
+
+    .btn-copy-all {
+      width: 100%;
+      margin-top: 20px;
+      background-color: var(--text-main);
+      color: white;
+    }
+    .btn-copy-all:hover { background-color: black; }
+
+    /* Outputs Section */
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .result-card {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .card-header h3 { font-size: 1rem; font-weight: 600; }
+
+    textarea {
+      width: 100%;
+      height: 250px;
+      padding: 15px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border: 1px solid var(--code-bg);
+      border-radius: 8px;
+      resize: vertical;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    textarea:focus { outline: 2px solid var(--primary); }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--success);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 50px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, bottom 0.3s;
+      font-weight: 500;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; visibility: visible; bottom: 30px; }
+
+    @media (max-width: 768px) {
+      .controls { grid-template-columns: 1fr; }
+      .results-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h2>Extrator SQL de PDF</h2>
+      <p class="subtitle">Atualiza tabelas de Produto e Credor automaticamente</p>
+    </header>
+
+    <div class="controls">
+      <div class="input-group">
+        <label for="pdfInput">Arquivo PDF</label>
+        <input type="file" id="pdfInput" accept="application/pdf" />
+      </div>
+
+      <div class="input-group">
+        <label for="dataInput">Data de Referência</label>
+        <input type="date" id="dataInput" />
+      </div>
+
+      <button id="gerarBtn" class="btn-primary">Gerar SQL</button>
+    </div>
+
+    <div class="results-grid">
+      <div class="result-card">
+        <div class="card-header">
+          <h3>Produto</h3>
+          <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="copiarSQL('produtoOutput')">Copiar</button>
+        </div>
+        <textarea id="produtoOutput" placeholder="Aguardando processamento..."></textarea>
+      </div>
+
+      <div class="result-card">
+        <div class="card-header">
+          <h3>Credor</h3>
+          <button class="btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="copiarSQL('credorOutput')">Copiar</button>
+        </div>
+        <textarea id="credorOutput" placeholder="Aguardando processamento..."></textarea>
+      </div>
+    </div>
+
+    <button class="btn-copy-all" onclick="copiarTudo()">Copiar Ambos os Códigos</button>
+  </div>
+
+  <div id="toast" class="toast">Copiado com sucesso!</div>
+
+  <script>
+    // Configuração do Worker do PDF.js (Opcional, mas recomendado para performance se local)
+    // pdfjsLib.GlobalWorkerOptions.workerSrc = '...'; 
+
+    const pdfInput = document.getElementById('pdfInput');
+    const dataInput = document.getElementById('dataInput');
+    const gerarBtn = document.getElementById('gerarBtn');
+    const produtoOutput = document.getElementById('produtoOutput');
+    const credorOutput = document.getElementById('credorOutput');
+    const toast = document.getElementById('toast');
+
+    gerarBtn.addEventListener('click', async () => {
+      const file = pdfInput.files[0];
+      const data = dataInput.value;
+
+      if (!file || !data) {
+        alert("Por favor, selecione o arquivo PDF e informe a data.");
+        return;
+      }
+
+      // Feedback visual de carregamento
+      produtoOutput.value = "Lendo PDF...";
+      credorOutput.value = "Lendo PDF...";
+      gerarBtn.disabled = true;
+      gerarBtn.textContent = "Processando...";
+
+      const [ano, mes, dia] = data.split("-");
+      const dataFormatada = `${dia}.${mes}.${ano}`;
+
+      const reader = new FileReader();
+      reader.onload = async function () {
+        const typedarray = new Uint8Array(this.result);
+
+        try {
+          const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
+          let fullText = "";
+
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            fullText += content.items.map(item => item.str).join(" ") + " ";
+          }
+
+          // --- Lógica Original: Produto ---
+          const regexProduto = /item\s*[:\-]?\s*(\d+)/gi;
+          const produtoSet = new Set();
+          let matchProduto;
+          while ((matchProduto = regexProduto.exec(fullText)) !== null) {
+            produtoSet.add(matchProduto[1].padStart(11, '0'));
+          }
+
+          if (produtoSet.size > 0) {
+            const ids = [...produtoSet];
+            let produtoSQL = `UPDATE produto c\n   SET c.D_CAD_PROD = '${dataFormatada}',\n       c.D_ALTC_SICOM_PROD = null,\n       c.D_EVIO_SICOM_PROD = '${dataFormatada}'\n WHERE c.id11_PROD IN (`;
+            produtoSQL += ids.map(id => `'${id}'`).join(', ');
+            produtoSQL += ");";
+            produtoOutput.value = produtoSQL;
+          } else {
+            produtoOutput.value = "-- Nenhum número de item encontrado.";
+          }
+
+          // --- Lógica Original: Credor ---
+          const regexDoc1 = /tipo\s+de\s+documento\s+1\s+e\s+número\s+do\s+documento\s+(\d+)/gi;
+          const regexDoc2 = /tipo\s+de\s+documento\s+2\s+e\s+número\s+do\s+documento\s+(\d+)/gi;
+
+          const matches1 = [...fullText.matchAll(regexDoc1)].map(m => m[1].padStart(11, '0'));
+          const matches2 = [...fullText.matchAll(regexDoc2)].map(m => m[1].padStart(14, '0'));
+
+          const cnpjs = [...new Set([...matches1, ...matches2])];
+
+          if (cnpjs.length > 0) {
+            let credorSQL = "update credor set\n";
+            credorSQL += `D_CAD_CDR = '${dataFormatada}',\nD_ALTC_SICOM_CDR = null,\nD_EVIO_SICOM_CDR = '${dataFormatada}'\n`;
+            credorSQL += `where cnpj_cdr IN (${cnpjs.map(c => `'${c}'`).join(', ')});`;
+            credorOutput.value = credorSQL;
+          } else {
+            credorOutput.value = "-- Nenhum número de CNPJ/documento encontrado.";
+          }
+
+        } catch (err) {
+          produtoOutput.value = "Erro: " + err.message;
+          credorOutput.value = "Erro: " + err.message;
+        } finally {
+            gerarBtn.disabled = false;
+            gerarBtn.textContent = "Gerar SQL";
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+
+    // Função Genérica de Cópia (Moderna)
+    async function copyToClipboard(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            showToast();
+        } catch (err) {
+            // Fallback para navegadores antigos se necessário
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textArea);
+            showToast();
+        }
+    }
+
+    function copingIndividual(id) {
+      const val = document.getElementById(id).value;
+      if(val) copyToClipboard(val);
+    }
+
+    // Mantendo a assinatura da função que você usava, mas modernizada
+    function copiarSQL(id) {
+        copingIndividual(id);
+    }
+
+    // NOVA FUNÇÃO: Copiar Tudo
+    function copiarTudo() {
+      const prodVal = produtoOutput.value;
+      const credVal = credorOutput.value;
+      
+      if (!prodVal && !credVal) return;
+
+      const textoFinal = `--- PRODUTO ---\n${prodVal}\n\n--- CREDOR ---\n${credVal}`;
+      copyToClipboard(textoFinal);
+    }
+
+    function showToast() {
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+  </script>
+
+</body>
+</html>

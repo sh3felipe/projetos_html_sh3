@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processador CSV - Múltiplas Regras</title>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Área de Upload */
+        .upload-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] {
+            padding: 10px;
+            border: 1px dashed #ccc;
+            width: 100%;
+            max-width: 300px;
+            cursor: pointer;
+        }
+
+        /* Grid do Dashboard */
+        .dashboard-grid {
+            display: none; 
+            width: 100%;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+
+        h2 { 
+            margin-top: 0; 
+            font-size: 1.2rem; 
+            color: #555; 
+            border-bottom: 2px solid #eee; 
+            padding-bottom: 10px;
+        }
+
+        .logic-desc {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+            border-left: 4px solid #007bff;
+        }
+
+        .logic-group {
+            margin-bottom: 10px;
+        }
+        .logic-title {
+            font-weight: bold;
+            color: #0056b3;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        /* Botão de Download */
+        .btn-download {
+            background-color: #28a745;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 10px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .btn-download:hover {
+            background-color: #218838;
+        }
+        .btn-download:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Visualização TXT Raw */
+        .raw-content-box {
+            background-color: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            white-space: pre; 
+            overflow: auto;
+            max-height: 400px;
+            font-size: 14px;
+            border: 1px solid #444;
+        }
+        
+        .stats {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Processador de Regras CSV</h1>
+            <p>Aplica regras condicionais distintas baseadas no prefixo da linha.</p>
+        </div>
+
+        <div class="upload-section">
+            <label for="csvFileInput"><b>1. Selecione seu arquivo CSV:</b></label><br><br>
+            <input type="file" id="csvFileInput" accept=".csv">
+        </div>
+
+        <div class="dashboard-grid" id="dashboard">
+            
+            <div class="card">
+                <h2>Regras Aplicadas</h2>
+                <div class="logic-desc">
+                    <div class="logic-group">
+                        <span class="logic-title">Regra 1 (Prefixo 13;511...)</span>
+                        • Se (C7 + C9) > C10 &rarr; Soma C11 ao C10.<br>
+                        • Se (C7 + C9) < C10 &rarr; Soma C11 ao C9.<br>
+                        • Campo 11 torna-se 0,00.
+                    </div>
+                    <div class="logic-group">
+                        <span class="logic-title">Regra 2 (Prefixo 13;611...)</span>
+                        • Se Campo 8 for <strong>"D"</strong> &rarr; Soma C11 ao C10.<br>
+                        • Se Campo 8 for <strong>"C"</strong> &rarr; Soma C11 ao C9.<br>
+                        • Campo 11 torna-se 0,00.<br>
+                        • <strong>Último campo (C12) torna-se "C".</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="text-align: center;">
+                <h2>3. Exportar Arquivo</h2>
+                <p>O arquivo foi processado. Clique abaixo para salvar com o mesmo nome.</p>
+                <button id="downloadBtn" class="btn-download" disabled>Baixar Arquivo Modificado</button>
+            </div>
+
+            <div class="card">
+                <h2>Pré-visualização do Resultado</h2>
+                <div class="stats" id="statsText"></div>
+                <div id="rawContent" class="raw-content-box">Aguardando arquivo...</div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Elementos do DOM
+        const fileInput = document.getElementById('csvFileInput');
+        const dashboard = document.getElementById('dashboard');
+        const rawContentBox = document.getElementById('rawContent');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statsText = document.getElementById('statsText');
+
+        // Prefixos
+        const PREFIX_511 = "13;511100000;";
+        const PREFIX_611 = "13;611100000;";
+        
+        let originalFileName = "arquivo.csv";
+
+        // Funções de formatação numérica (Brasil)
+        function parseBrFloat(str) {
+            if (!str) return 0;
+            return parseFloat(str.replace(/\./g, '').replace(',', '.'));
+        }
+
+        function formatBrFloat(num) {
+            return num.toFixed(2).replace('.', ',');
+        }
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                originalFileName = file.name; 
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    const content = e.target.result;
+                    processFile(content);
+                };
+                
+                reader.onerror = function() {
+                    alert("Erro ao ler o arquivo.");
+                };
+
+                reader.readAsText(file);
+            }
+        });
+
+        function processFile(content) {
+            const lines = content.split(/\r?\n/);
+            let modifiedCount = 0;
+
+            const processedLines = lines.map(line => {
+                let cols = line.split(';');
+
+                // Validação de segurança básica (garante que existem 12 colunas)
+                if (cols.length < 12) return line;
+
+                // --- REGRA 1: Prefixo 13;511... ---
+                if (line.startsWith(PREFIX_511)) {
+                    modifiedCount++;
+                    
+                    let valCampo7 = parseBrFloat(cols[6]);
+                    let valCampo9 = parseBrFloat(cols[8]);
+                    let valCampo10 = parseBrFloat(cols[9]);
+                    let valCampo11 = parseBrFloat(cols[10]);
+
+                    let soma7e9 = valCampo7 + valCampo9;
+
+                    if (soma7e9 > valCampo10) {
+                        cols[9] = formatBrFloat(valCampo10 + valCampo11);
+                    } else if (soma7e9 < valCampo10) {
+                        cols[8] = formatBrFloat(valCampo9 + valCampo11);
+                    }
+                    cols[10] = "0,00"; // Zera campo 11
+
+                    return cols.join(';');
+                }
+
+                // --- REGRA 2: Prefixo 13;611... ---
+                else if (line.startsWith(PREFIX_611)) {
+                    modifiedCount++;
+
+                    let valCampo8 = cols[7].trim(); // Campo 8 (Letra D ou C)
+                    let valCampo9 = parseBrFloat(cols[8]);
+                    let valCampo10 = parseBrFloat(cols[9]);
+                    let valCampo11 = parseBrFloat(cols[10]);
+
+                    if (valCampo8 === 'D') {
+                        // Se D, soma C11 ao C10
+                        cols[9] = formatBrFloat(valCampo10 + valCampo11);
+                        cols[10] = "0,00"; 
+                    } 
+                    else if (valCampo8 === 'C') {
+                        // Se C, soma C11 ao C9
+                        cols[8] = formatBrFloat(valCampo9 + valCampo11);
+                        cols[10] = "0,00";
+                    }
+
+                    // Ajuste solicitado: O último campo (índice 11) vira C
+                    cols[11] = "C";
+
+                    return cols.join(';');
+                }
+
+                // Se não cair em nenhuma regra, retorna original
+                return line;
+            });
+
+            const resultText = processedLines.join('\n');
+
+            // Atualiza Interface
+            dashboard.style.display = 'block';
+            rawContentBox.textContent = resultText;
+            statsText.textContent = `Total de linhas: ${lines.length} | Linhas modificadas: ${modifiedCount}`;
+
+            // Prepara Download
+            prepareDownload(resultText);
+        }
+
+        function prepareDownload(text) {
+            const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            downloadBtn.onclick = function() {
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", originalFileName);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            downloadBtn.disabled = false;
+        }
+    </script>
+</body>
+</html>

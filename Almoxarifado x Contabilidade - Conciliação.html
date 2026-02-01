@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Comparação Contabilidade x Alm / Pat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-6">
+
+<details class="bg-white rounded-xl shadow mb-6 hidden">
+    <summary class="p-4 font-bold text-gray-700 cursor-pointer select-none">
+        Ver Orientações e Códigos (Clique para expandir)
+    </summary>
+    <div class="p-4 border-t text-sm text-gray-800">
+        </div>
+</details>
+
+<div class="grid grid-cols-2 gap-6">
+
+    <div class="bg-white rounded-xl shadow p-4 flex flex-col gap-2">
+        <div class="flex justify-between items-center">
+            <button
+                class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                onclick="fileCont.click()">
+                Carregar CONTABILIDADE
+            </button>
+            <span id="fileName1" class="text-xs text-gray-600 italic text-right max-w-[150px] truncate">
+                Nenhum arquivo
+            </span>
+        </div>
+        <input id="fileCont" type="file" accept=".txt" class="hidden" onchange="loadFile(event, 1)">
+        
+        <textarea id="view1" 
+                  class="w-full h-32 text-[10px] bg-gray-50 border border-gray-200 rounded p-2 font-mono text-gray-600 resize-y whitespace-pre overflow-auto" 
+                  placeholder="O conteúdo do arquivo aparecerá aqui..." 
+                  readonly></textarea>
+    </div>
+
+    <div class="bg-white rounded-xl shadow p-4 flex flex-col gap-2">
+        <div class="flex justify-between items-center">
+            <button
+                class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                onclick="fileAlm.click()">
+                Carregar ALMOXARIFADO
+            </button>
+            <span id="fileName2" class="text-xs text-gray-600 italic text-right max-w-[150px] truncate">
+                Nenhum arquivo
+            </span>
+        </div>
+        <input id="fileAlm" type="file" accept=".txt" class="hidden" onchange="loadFile(event, 2)">
+        
+        <textarea id="view2" 
+                  class="w-full h-32 text-[10px] bg-gray-50 border border-gray-200 rounded p-2 font-mono text-gray-600 resize-y whitespace-pre overflow-auto" 
+                  placeholder="O conteúdo do arquivo aparecerá aqui..." 
+                  readonly></textarea>
+    </div>
+
+    <div class="col-span-2 bg-white rounded-xl shadow p-4">
+        <div class="flex items-end gap-3 mb-3 flex-wrap">
+            <button class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700" onclick="compareFiles()">
+                Comparar Arquivos
+            </button>
+
+            <div class="flex flex-col">
+                <label for="inputEmpresa" class="text-xs font-bold text-gray-700 mb-1">Empresa:</label>
+                <input type="text" inputmode="numeric" id="inputEmpresa" value="1" 
+                       oninput="this.value = this.value.replace(/\D/g, '')"
+                       class="w-16 px-2 py-2 border border-gray-300 rounded text-sm text-gray-700 focus:outline-none focus:border-blue-500 text-center">
+            </div>
+
+            <div class="flex flex-col">
+                <label for="inputSequence" class="text-xs font-bold text-gray-700 mb-1">ID Inicial (5 díg.):</label>
+                <input type="text" inputmode="numeric" id="inputSequence" value="02000" maxlength="5" 
+                       placeholder="02000"
+                       onblur="this.value = this.value.padStart(5, '0')"
+                       class="w-24 px-2 py-2 border border-gray-300 rounded text-sm text-gray-700 focus:outline-none focus:border-blue-500">
+            </div>
+
+            <div class="flex flex-col">
+                <label for="inputDate" class="text-xs font-bold text-gray-700 mb-1">Data (DD.MM.AAAA):</label>
+                <input type="text" id="inputDate" maxlength="10" placeholder="DD.MM.AAAA" oninput="maskDate(this)"
+                       class="w-28 px-2 py-2 border border-gray-300 rounded text-sm text-gray-700 focus:outline-none focus:border-blue-500">
+            </div>
+
+            <button class="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700" onclick="generateInserts()">
+                GERAR INSERT
+            </button>
+
+            <button class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-bold" onclick="generateZerarAlmoxarifado()">
+                ZERAR ALMOXARIFADO
+            </button>
+        </div>
+
+        <div id="missingMappingBox" class="hidden mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 rounded">
+            <div class="font-bold text-sm mb-1">⚠️ Atenção: Contas sem Mapeamento (De-Para)</div>
+            <div class="text-xs mb-2">As contas abaixo passaram pelo filtro, mas não possuem código reduzido cadastrado no sistema. Elas usarão o código contábil original no SQL se não forem ajustadas.</div>
+            <ul id="missingList" class="list-disc ml-5 text-xs font-mono text-red-600 font-bold"></ul>
+        </div>
+
+        <div class="text-xs text-gray-500 mb-2 font-semibold">
+            * Exibindo apenas contas do grupo 1.1.5.6.1.XX.00 (Exceto 1.1.5.6.1.00.00)
+        </div>
+
+        <pre id="result" class="text-xs bg-gray-50 p-2 overflow-auto whitespace-pre mb-4" style="max-height: 300px;"></pre>
+        
+        <div class="flex justify-between items-end mb-1">
+            <div class="text-xs font-bold text-gray-700">SQL Gerado:</div>
+            
+            <button id="btnCopy" onclick="copySql()" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded border border-gray-400 transition-colors font-bold min-w-[100px]">
+                Copiar SQL
+            </button>
+        </div>
+        <textarea id="sqlResult" class="w-full h-48 text-xs bg-gray-800 text-green-400 p-2 rounded font-mono" readonly></textarea>
+    </div>
+
+</div>
+
+<script>
+let text1 = '';
+let text2 = '';
+
+// --- MAPA GLOBAL (De-Para) ---
+const dePara = {
+    "115610100": "00380",
+    "115610200": "00381",
+    "115610300": "00382",
+    "115610400": "00383",
+    "115610500": "00384",
+    "115610600": "00385",
+    "115610700": "00386",
+    "115610800": "00387",
+    "115610900": "00388",
+    "115619900": "04962"
+};
+
+// --- MÁSCARA PARA DATA (DD.MM.AAAA) ---
+function maskDate(input) {
+    let v = input.value.replace(/\D/g, ''); // Remove tudo que não é dígito
+    if (v.length > 2) v = v.replace(/^(\d{2})(\d)/, '$1.$2');
+    if (v.length > 5) v = v.replace(/^(\d{2})\.(\d{2})(\d)/, '$1.$2.$3');
+    input.value = v;
+}
+
+function loadFile(event, idx) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        const content = e.target.result;
+        if (idx === 1) {
+            text1 = content;
+            fileName1.textContent = file.name;
+            document.getElementById('view1').value = content;
+        } else {
+            text2 = content;
+            fileName2.textContent = file.name;
+            document.getElementById('view2').value = content;
+        }
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+function parseBR(valor) {
+    const negativo = /^\(.*\)$/.test(valor);
+    const limpo = valor.replace(/[().]/g, '').replace(',', '.');
+    const num = parseFloat(limpo);
+    return negativo ? -num : num;
+}
+
+function parseContabilidade(text) {
+    const map = {};
+    text.split(/\r?\n/).forEach(line => {
+        if (!/^\s*\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+/.test(line)) return;
+        const cols = line.trim().split(/\s{2,}/);
+        if (cols.length < 6) return;
+        const codigo = cols[0];
+        const saldoFinal = cols[cols.length - 1];
+        if (saldoFinal.includes(',')) {
+            map[codigo] = parseBR(saldoFinal);
+        }
+    });
+    return map;
+}
+
+function parseAlmPat(text) {
+    const map = {};
+    text.split(/\r?\n/).forEach(line => {
+        if (/^\s*Totais:/i.test(line)) return;
+        if (!/^\s*\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+/.test(line)) return;
+        const cols = line.trim().split(/\s{2,}/);
+        if (cols.length < 6) return;
+        const conta = cols[0];
+        const total = cols[cols.length - 1];
+        if (total.includes(',')) {
+            map[conta] = parseBR(total);
+        }
+    });
+    return map;
+}
+
+function isValidAccount(cod) {
+    const cleanCod = cod.replace(/\./g, '');
+    if (!/^11561\d{2}00$/.test(cleanCod)) return false;
+    if (cleanCod === '115610000') return false;
+    return true;
+}
+
+function compareFiles() {
+    if (!text1 || !text2) {
+        alert('Importe os dois arquivos.');
+        return;
+    }
+
+    const cont = parseContabilidade(text1);
+    const alm  = parseAlmPat(text2);
+    const allCodes = new Set([...Object.keys(cont), ...Object.keys(alm)]);
+    
+    // Preparação UI
+    const resultDiv = document.getElementById('result');
+    const warningBox = document.getElementById('missingMappingBox');
+    const missingList = document.getElementById('missingList');
+    
+    // Reset warning
+    warningBox.classList.add('hidden');
+    missingList.innerHTML = '';
+    const missingCodes = [];
+
+    let output = '';
+    output += 'CODIGO | SALDO FINAL (CONT) | TOTAL (ALM) | DIFERENÇA\n';
+    output += '-----------------------------------------------------------------------\n';
+
+    [...allCodes].sort().forEach(cod => {
+        if (!isValidAccount(cod)) return;
+
+        // Verifica mapeamento
+        const cleanCod = cod.replace(/\./g, '');
+        if (!dePara[cleanCod]) {
+            missingCodes.push(cod);
+        }
+
+        const saldo = cont[cod] ?? 0;
+        const total = alm[cod] ?? 0;
+        const diff  = saldo - total;
+
+        const codHtml  = `<span class="font-bold text-blue-700">${cod}</span>`;
+        const diffHtml = `<span class="font-bold text-red-700">${diff.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>`;
+
+        output += `${codHtml} | ` +
+            `${saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ` +
+            `${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ` +
+            `${diffHtml}\n`;
+    });
+
+    resultDiv.innerHTML = output;
+
+    if (missingCodes.length > 0) {
+        warningBox.classList.remove('hidden');
+        missingCodes.forEach(c => {
+            const li = document.createElement('li');
+            li.textContent = c;
+            missingList.appendChild(li);
+        });
+    }
+}
+
+function copySql() {
+    const copyText = document.getElementById("sqlResult");
+    const btn = document.getElementById("btnCopy");
+
+    if (!copyText.value) {
+        alert("Não há código para copiar.");
+        return;
+    }
+
+    copyText.select();
+    copyText.setSelectionRange(0, 99999);
+
+    const showSuccess = () => {
+        const originalText = "Copiar SQL";
+        
+        btn.innerText = "Copiado! ✓";
+        btn.classList.remove("bg-gray-200", "text-gray-700", "hover:bg-gray-300");
+        btn.classList.add("bg-green-500", "text-white", "hover:bg-green-600", "border-green-600");
+
+        setTimeout(() => {
+            btn.innerText = originalText;
+            btn.classList.remove("bg-green-500", "text-white", "hover:bg-green-600", "border-green-600");
+            btn.classList.add("bg-gray-200", "text-gray-700", "hover:bg-gray-300");
+        }, 2000);
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(copyText.value).then(showSuccess);
+    } else {
+        document.execCommand('copy');
+        showSuccess();
+    }
+}
+
+function generateInserts() {
+    if (!text1 || !text2) {
+        alert('Importe os dois arquivos primeiro.');
+        return;
+    }
+    const cont = parseContabilidade(text1);
+    const alm  = parseAlmPat(text2);
+    processAndGenerateSql(cont, alm);
+}
+
+function generateZerarAlmoxarifado() {
+    if (!text1) {
+        alert('Importe o arquivo da CONTABILIDADE primeiro.');
+        return;
+    }
+    // Simula almoxarifado vazio (todos os totais = 0)
+    const cont = parseContabilidade(text1);
+    const almEmpty = {}; 
+    processAndGenerateSql(cont, almEmpty);
+}
+
+function processAndGenerateSql(contMap, almMap) {
+    const dataInput = document.getElementById('inputDate').value;
+    if (dataInput.length !== 10) {
+        alert('Por favor, preencha a data corretamente (DD.MM.AAAA).');
+        return;
+    }
+    const ano = dataInput.substring(6, 10);
+    
+    const empresaVal = document.getElementById('inputEmpresa').value.replace(/\D/g, '') || '1';
+    const seqInput = document.getElementById('inputSequence').value.replace(/\D/g, '');
+    let sequence = parseInt(seqInput) || 2000;
+
+    const allCodes = new Set([...Object.keys(contMap), ...Object.keys(almMap)]);
+
+    let sqlOutput = '';
+
+    [...allCodes].sort().forEach(cod => {
+        if (!isValidAccount(cod)) return;
+
+        const saldo = contMap[cod] ?? 0;
+        const total = almMap[cod] ?? 0;
+        const diff  = saldo - total;
+
+        if (Math.abs(diff) > 0.0001) { 
+            const id5 = sequence.toString().padStart(5, '0');
+            const valorSql = Math.abs(diff).toFixed(2);
+            
+            const codLimpo = cod.replace(/\./g, '');
+            const reducedCod = dePara[codLimpo] || cod;
+            
+            const historico = `AJUSTE ALMOXARIFADO CONTA ${codLimpo}`;
+
+            let grupo, contaDebito, contaCredito, atribDebito, atribCredito;
+
+            if (diff < 0) {
+                grupo = '001858';
+                contaDebito = reducedCod;
+                contaCredito = '03028';   
+                atribDebito = "'P'";      
+                atribCredito = "NULL";
+            } else {
+                grupo = '001862';
+                contaDebito = '05440';    
+                contaCredito = reducedCod;
+                atribDebito = "NULL";
+                atribCredito = "'P'";     
+            }
+
+            const sql1 = `insert into LANCAMENTO_PATRIMONIAL (CHAR_ID_EMP, STR_EXR_EXR, ID5_LCMT_PTMAL, D_LCMT_PTMAL, DESC_LCMT_PTMAL, VR_LCMT_PTMAL, ID5_REF_LCMT_PTMAL, STR_ID_T_LCMT, LG_RQLB_AUX) values ('${empresaVal}', '${ano}', '${id5}', '${dataInput}', '${historico}', ${valorSql}, null, 'N', 'N');`;
+            
+            const sql2 = `INSERT INTO LANCAMENTO_PATRIMONIAL_EVTO (CHAR_ID_EMP, STR_EXR_EXR, ID5_LCMT_PTMAL, ID4_LCMT_EVTO, ID6_GRPO_LCP, ID5_DEBT_PLAN_CT_EVTO, ID5_CDTA_PLAN_CT_EVTO, ID3_DEBT_FNTE_EVTO, ID3_CDTA_FNTE_EVTO, ID10_DEBT_RCTA, ID10_CDTA_RCTA, ID2_DEBT_FCAO, ID2_CDTA_FCAO, ID2_DEBT_T_DESP, ID2_CDTA_T_DESP, ID3_DEBT_SFAO, ID3_CDTA_SFAO, ID4_DEBT_EXR_RP, ID4_CDTA_EXR_RP, ID4_DEBT_PGM, ID4_CDTA_PGM, ID5_DEBT_CDR, ID5_CDTA_CDR, CHAR_ID_EMP_CDR, ID5_DEBT_CSCO, ID5_CDTA_CSCO, ID5_DEBT_CT, ID5_CDTA_CT, ID8_DEBT_CT_DESP, ID8_CDTA_CT_DESP, INT_DEBT_DC, INT_CDTA_DC, INT_DEBT_MDE_ASPS, INT_CDTA_MDE_ASPS, STR_DEBT_UND_OCT, STR_CDTA_UND_OCT, STR_DEBT_UND_OCT_ORIG, STR_CDTA_UND_OCT_ORIG, STR_DEBT_ATRB_SF, STR_CDTA_ATRB_SF, STR_DEBT_CSCO_T_RCSO, STR_CDTA_CSCO_T_RCSO, ID4_DEBT_PRAT, ID4_CDTA_PRAT, STR_DEBT_NUM_DESP, STR_CDTA_NUM_DESP, INT_DEBT_BFCO_RPPS, INT_CDTA_BFCO_RPPS, INT_DEBT_EMDA_PLTAR, INT_CDTA_EMDA_PLTAR, ID5_DEBT_DIV_CSDD, ID5_DEBT_EXTA, ID6_DEBT_DRTO_RCBR, ID6_DEBT_GRTIA, ID4_DEBT_PPP, ID6_DEBT_PCTIO, ID6_DEBT_TCE, ID6_DEBT_CGE, ID5_CDTA_DIV_CSDD, ID5_CDTA_EXTA, ID6_CDTA_DRTO_RCBR, ID6_CDTA_GRTIA, ID4_CDTA_PPP, ID6_CDTA_PCTIO, ID6_CDTA_TCE, ID6_CDTA_CGE, ID4_DEBT_ID_CO, ID4_CDTA_ID_CO) VALUES ('${empresaVal}', '${ano}', '${id5}', '0001', '${grupo}', '${contaDebito}', '${contaCredito}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '${empresaVal}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ${atribDebito}, ${atribCredito}, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);`;
+
+            sqlOutput += sql1 + '\n' + sql2 + '\n\n';
+            sequence++;
+        }
+    });
+
+    if (sqlOutput === '') {
+        sqlOutput = '-- Nenhuma diferença encontrada para gerar inserts.';
+    }
+
+    document.getElementById('sqlResult').value = sqlOutput;
+}
+</script>
+
+</body>
+</html>

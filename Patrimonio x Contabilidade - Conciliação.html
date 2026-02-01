@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Comparação Contabilidade x Alm / Pat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-6">
+
+<details class="bg-white rounded-xl shadow mb-6 hidden">
+    <summary class="p-4 font-bold text-gray-700 cursor-pointer select-none">
+        Ver Orientações e Códigos (Clique para expandir)
+    </summary>
+    <div class="p-4 border-t text-sm text-gray-800">
+        </div>
+</details>
+
+<div class="grid grid-cols-2 gap-6">
+
+    <div class="bg-white rounded-xl shadow p-4 flex flex-col gap-2">
+        <div class="flex justify-between items-center">
+            <button
+                class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                onclick="fileCont.click()">
+                Carregar CONTABILIDADE
+            </button>
+            <span id="fileName1" class="text-xs text-gray-600 italic text-right max-w-[150px] truncate">
+                Nenhum arquivo
+            </span>
+        </div>
+        <input id="fileCont" type="file" accept=".txt" class="hidden" onchange="loadFile(event, 1)">
+        
+        <textarea id="view1" 
+                  class="w-full h-32 text-[10px] bg-gray-50 border border-gray-200 rounded p-2 font-mono text-gray-600 resize-y whitespace-pre overflow-auto" 
+                  placeholder="O conteúdo do arquivo aparecerá aqui..." 
+                  readonly></textarea>
+    </div>
+
+    <div class="bg-white rounded-xl shadow p-4 flex flex-col gap-2">
+        <div class="flex justify-between items-center">
+            <button
+                class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                onclick="fileAlm.click()">
+                Carregar PATRIMÔNIO
+            </button>
+            <span id="fileName2" class="text-xs text-gray-600 italic text-right max-w-[150px] truncate">
+                Nenhum arquivo
+            </span>
+        </div>
+        <input id="fileAlm" type="file" accept=".txt" class="hidden" onchange="loadFile(event, 2)">
+        
+        <textarea id="view2" 
+                  class="w-full h-32 text-[10px] bg-gray-50 border border-gray-200 rounded p-2 font-mono text-gray-600 resize-y whitespace-pre overflow-auto" 
+                  placeholder="O conteúdo do arquivo aparecerá aqui..." 
+                  readonly></textarea>
+    </div>
+
+    <div class="col-span-2 bg-white rounded-xl shadow p-4">
+        <div class="flex items-end gap-3 mb-3 flex-wrap">
+            <button class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700" onclick="compareFiles()">
+                Comparar Arquivos
+            </button>
+
+            <div class="flex flex-col">
+                <label for="inputEmpresa" class="text-xs font-bold text-gray-700 mb-1">Empresa:</label>
+                <input type="text" inputmode="numeric" id="inputEmpresa" value="1" 
+                       oninput="this.value = this.value.replace(/\D/g, '')"
+                       class="w-16 px-2 py-2 border border-gray-300 rounded text-sm text-gray-700 focus:outline-none focus:border-blue-500 text-center">
+            </div>
+
+            <div class="flex flex-col">
+                <label for="inputSequence" class="text-xs font-bold text-gray-700 mb-1">ID Inicial (5 díg.):</label>
+                <input type="text" inputmode="numeric" id="inputSequence" value="02000" maxlength="5" 
+                       placeholder="02000"
+                       onblur="this.value = this.value.padStart(5, '0')"
+                       class="w-24 px-2 py-2 border border-gray-300 rounded text-sm text-gray-700 focus:outline-none focus:border-blue-500">
+            </div>
+
+            <div class="flex flex-col">
+                <label for="inputDate" class="text-xs font-bold text-gray-700 mb-1">Data (DD.MM.AAAA):</label>
+                <input type="text" id="inputDate" maxlength="10" placeholder="DD.MM.AAAA" oninput="maskDate(this)"
+                       class="w-28 px-2 py-2 border border-gray-300 rounded text-sm text-gray-700 focus:outline-none focus:border-blue-500">
+            </div>
+
+            <button class="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700" onclick="generateInserts()">
+                GERAR INSERT
+            </button>
+        </div>
+
+        <div id="missingMappingBox" class="hidden mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 rounded">
+            <div class="font-bold text-sm mb-1">⚠️ Atenção: Contas sem Mapeamento (De-Para)</div>
+            <div class="text-xs mb-2">As contas abaixo passaram pelo filtro, mas não possuem código reduzido cadastrado no sistema. Elas usarão o código contábil original no SQL se não forem ajustadas.</div>
+            <ul id="missingList" class="list-disc ml-5 text-xs font-mono text-red-600 font-bold"></ul>
+        </div>
+
+        <div class="text-xs text-gray-500 mb-2 font-semibold">
+            * Exibindo apenas contas dos grupos 1.2.2 e 1.2.3 (Analíticas - Final diferente de 00)<br>
+            * Exceções incluídas: 122719900, 123810500, 123810600 | <strong>Ignorada: 1.2.2.1.1.01.07</strong><br>
+            * No Painel 2, linhas contendo <strong>(-)</strong> serão consideradas negativas.
+        </div>
+
+        <pre id="result" class="text-xs bg-gray-50 p-2 overflow-auto whitespace-pre mb-4" style="max-height: 300px;"></pre>
+        
+        <div class="flex justify-between items-end mb-1">
+            <div class="text-xs font-bold text-gray-700">SQL Gerado:</div>
+            
+            <button id="btnCopy" onclick="copySql()" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded border border-gray-400 transition-colors font-bold min-w-[100px]">
+                Copiar SQL
+            </button>
+        </div>
+        <textarea id="sqlResult" class="w-full h-48 text-xs bg-gray-800 text-green-400 p-2 rounded font-mono" readonly></textarea>
+    </div>
+
+</div>
+
+<script>
+let text1 = '';
+let text2 = '';
+
+// --- MAPA GLOBAL (De-Para) COMPACTADO ---
+const dePara = {
+"122719900":"00641", "123000000":"06995", "123100000":"06996", "123110000":"06997", "123110100":"06998", "123110101":"00659", "123110102":"00660", "122210101":"00629",
+"123110103":"00661", "123110104":"00662", "123110105":"00663", "123110106":"00664", "123110107":"00665", "123110108":"00666", "122210102":"00630",
+"123110109":"00667", "123110110":"00668", "123110111":"00669", "123110112":"00670", "123110113":"00671", "123110114":"00672", "122810101":"00642",
+"123110115":"00673", "123110116":"00674", "123110117":"00675", "123110118":"00676", "123110119":"00677", "123110120":"00678", "122810102":"00643",
+"123110121":"00679", "123110199":"00680", "123110200":"06999", "123110201":"00681", "123110202":"00682", "123110203":"00683", "122110107":"00540",
+"123110300":"07000", "123110301":"00684", "123110302":"00685", "123110303":"00686", "123110304":"00687", "123110400":"07001", "122110299":"00552",
+"123110401":"00688", "123110402":"00689", "123110403":"00690", "123110404":"00691", "123110405":"00692", "123110406":"00693", "122910202":"00648",
+"123110499":"00694", "123110500":"07002", "123110501":"00695", "123110502":"00696", "123110503":"00697", "123110504":"00698", "122210201":"00631",
+"123110505":"00699", "123110506":"00700", "123110600":"00701", "123110700":"07003", "123110701":"00702", "123110702":"00703", "122210202":"00632",
+"123110704":"00704", "123110800":"07004", "123110801":"00705", "123110803":"00706", "123110805":"00707", "123110900":"00708", "122810199":"00644",
+"123111000":"00709", "123111100":"07005", "123119900":"07006", "123119901":"00710", "123119902":"00711", "123119908":"00712", "122310201":"00636",
+"123119999":"00713", "123200000":"07007", "123210000":"07008", "123210100":"07009", "123210101":"00714", "123210102":"00715", "122310299":"05021",
+"123210103":"00716", "123210104":"00717", "123210105":"00718", "123210106":"00719", "123210107":"00720", "123210108":"00721", "122210199":"05013",
+"123210109":"00722", "123210110":"00723", "123210111":"00724", "123210112":"00725", "123210113":"00726", "123210114":"00727", "122130299":"00590",
+"123210115":"00728", "123210116":"00729", "123210117":"00730", "123210118":"00731", "123210119":"00732", "123210120":"00733", "122150299":"00628",
+"123210121":"00734", "123210122":"00735", "123210198":"00736", "123210400":"07010", "123210401":"00737", "123210402":"00738",
+"123210403":"00739", "123210404":"00740", "123210405":"00741", "123210406":"00742", "123210407":"00743", "123210408":"00744",
+"123210409":"00745", "123210410":"00746", "123210411":"00747", "123210412":"00748", "123210413":"00749", "123210414":"00750",
+"123210415":"00751", "123210416":"00752", "123210417":"00753", "123210418":"00754", "123210499":"00755", "123210500":"07011",
+"123210501":"00756", "123210502":"00757", "123210503":"00758", "123210504":"00759", "123210505":"00760", "123210506":"00761",
+"123210507":"00762", "123210508":"00763", "123210509":"06332", "123210510":"07012", "123210511":"07013", "123210599":"00765",
+"123210600":"07014", "123210601":"00766", "123210602":"07015", "123210603":"07016", "123210605":"00767", "123210700":"00768",
+"123210800":"00769", "123210900":"07017", "123219900":"07018", "123219901":"00770", "123219902":"00771", "123219903":"00772",
+"123219905":"00773", "123219906":"00774", "123219999":"00775", "123700000":"07019", "123710000":"04172", "123720000":"04173",
+"123730000":"04174", "123740000":"04175", "123750000":"04176", "123800000":"07020", "123810000":"07021", "123810100":"07022",
+"123810101":"00776", "123810102":"00777", "123810103":"00778", "123810104":"00779", "123810105":"00780", "123810106":"00781",
+"123810107":"00782", "123810108":"00783", "123810109":"00784", "123810110":"00785", "123810199":"00786", "123810200":"07023",
+"123810201":"00787", "123810202":"00788", "123810203":"00789", "123810204":"00790", "123810205":"00791", "123810206":"00792",
+"123810299":"00793", "123810300":"00794", "123810400":"00795", "123810500":"00796", "123810600":"00797", "123810700":"07024",
+"123810800":"07025", "123810900":"07026", "123811000":"07027", "123811100":"07028", "123811200":"07029", "123900000":"07030",
+"123910000":"07031", "123910100":"07032", "123910101":"00798", "123910102":"00799", "123910103":"00800", "123910104":"00801",
+"123910105":"00802", "123910106":"00803", "123910107":"00804", "123910108":"00805", "123910109":"00806", "123910110":"00807",
+"123910199":"00808", "123910200":"07033", "123910201":"00809", "123910202":"00810", "123910203":"00811", "123910204":"00812",
+"123910205":"00813", "123910206":"00814", "123910299":"00815", "123910300":"07034", "123910400":"07035"
+};
+
+function maskDate(input) {
+    let v = input.value.replace(/\D/g, ''); 
+    if (v.length > 2) v = v.replace(/^(\d{2})(\d)/, '$1.$2');
+    if (v.length > 5) v = v.replace(/^(\d{2})\.(\d{2})(\d)/, '$1.$2.$3');
+    input.value = v;
+}
+
+function loadFile(event, idx) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        const content = e.target.result;
+        if (idx === 1) {
+            text1 = content;
+            fileName1.textContent = file.name;
+            document.getElementById('view1').value = content;
+        } else {
+            text2 = content;
+            fileName2.textContent = file.name;
+            document.getElementById('view2').value = content;
+        }
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+function parseBR(valor) {
+    const negativo = /^\(.*\)$/.test(valor);
+    const limpo = valor.replace(/[().]/g, '').replace(',', '.');
+    const num = parseFloat(limpo);
+    return negativo ? -num : num;
+}
+
+function parseContabilidade(text) {
+    const map = {};
+    text.split(/\r?\n/).forEach(line => {
+        if (!/^\s*\d+(\.\d+)+/.test(line)) return; 
+        const cols = line.trim().split(/\s{2,}/);
+        if (cols.length < 2) return; 
+        const codigo = cols[0];
+        const saldoFinal = cols[cols.length - 1];
+        if (saldoFinal && saldoFinal.includes(',')) {
+            map[codigo] = parseBR(saldoFinal);
+        }
+    });
+    return map;
+}
+
+function parseAlmPat(text) {
+    const map = {};
+    text.split(/\r?\n/).forEach(line => {
+        if (/^\s*Totais:/i.test(line)) return;
+        if (!/^\s*\d+(\.\d+)+/.test(line)) return;
+        const isNegativeLine = line.includes('(-)');
+        const cols = line.trim().split(/\s{2,}/);
+        if (cols.length < 2) return;
+        const conta = cols[0];
+        const total = cols[cols.length - 1];
+        if (total && total.includes(',')) {
+            let val = parseBR(total);
+            if (isNegativeLine) val = -Math.abs(val);
+            map[conta] = val;
+        }
+    });
+    return map;
+}
+
+// --- LÓGICA DE VALIDAÇÃO DA CONTA ---
+function isValidAccount(cod) {
+    const clean = cod.replace(/\./g, '');
+    
+    // REGRA 1: Desconsiderar explicitamente 122110107
+    if (clean === '122110107') return false;
+
+    // REGRA 2: Considerar explicitamente as exceções (mesmo com final 00)
+    // Adicionadas: 123810500 e 123810600
+    const excecoesIncluidas = ['122719900', '123810500', '123810600'];
+    if (excecoesIncluidas.includes(clean)) return true;
+
+    // REGRA 3: Grupos 1.2.2 ou 1.2.3
+    const escopoValido = cod.startsWith('1.2.2') || cod.startsWith('1.2.3');
+
+    // REGRA 4: Somente Analíticas (Não termina em .00)
+    const segmentos = cod.split('.');
+    const ultimoSegmento = segmentos[segmentos.length - 1];
+    const ehAnalitica = ultimoSegmento !== '00';
+
+    return escopoValido && ehAnalitica;
+}
+
+function compareFiles() {
+    if (!text1 || !text2) {
+        alert('Importe os dois arquivos.');
+        return;
+    }
+    const cont = parseContabilidade(text1);
+    const alm  = parseAlmPat(text2);
+    const allCodes = new Set([...Object.keys(cont), ...Object.keys(alm)]);
+    const resultDiv = document.getElementById('result');
+    const warningBox = document.getElementById('missingMappingBox');
+    const missingList = document.getElementById('missingList');
+    warningBox.classList.add('hidden');
+    missingList.innerHTML = '';
+    const missingCodes = [];
+    let output = '';
+    output += 'CODIGO | SALDO FINAL (CONT) | TOTAL (ALM) | DIFERENÇA\n';
+    output += '-----------------------------------------------------------------------\n';
+    [...allCodes].sort().forEach(cod => {
+        if (!isValidAccount(cod)) return;
+        const cleanCod = cod.replace(/\./g, '');
+        if (!dePara[cleanCod]) missingCodes.push(cod);
+        const saldo = cont[cod] ?? 0;
+        const total = alm[cod] ?? 0;
+        const diff  = saldo - total;
+        const codHtml  = `<span class="font-bold text-blue-700">${cod}</span>`;
+        const diffHtml = `<span class="font-bold text-red-700">${diff.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>`;
+        output += `${codHtml} | ` +
+            `${saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ` +
+            `${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ` +
+            `${diffHtml}\n`;
+    });
+    resultDiv.innerHTML = output;
+    if (missingCodes.length > 0) {
+        warningBox.classList.remove('hidden');
+        missingCodes.forEach(c => {
+            const li = document.createElement('li');
+            li.textContent = c;
+            missingList.appendChild(li);
+        });
+    }
+}
+
+function copySql() {
+    const copyText = document.getElementById("sqlResult");
+    const btn = document.getElementById("btnCopy");
+    if (!copyText.value) return;
+    copyText.select();
+    copyText.setSelectionRange(0, 99999);
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(copyText.value).then(() => {
+            const oldText = btn.innerText;
+            btn.innerText = "Copiado! ✓";
+            setTimeout(() => btn.innerText = oldText, 2000);
+        });
+    }
+}
+
+function generateInserts() {
+    if (!text1 || !text2) return;
+    const dataInput = document.getElementById('inputDate').value;
+    if (dataInput.length !== 10) { alert('Data inválida.'); return; }
+    const ano = dataInput.substring(6, 10);
+    const empresaVal = document.getElementById('inputEmpresa').value.replace(/\D/g, '') || '1';
+    let sequence = parseInt(document.getElementById('inputSequence').value) || 2000;
+    const cont = parseContabilidade(text1);
+    const alm  = parseAlmPat(text2);
+    const allCodes = new Set([...Object.keys(cont), ...Object.keys(alm)]);
+    let sqlOutput = '';
+    [...allCodes].sort().forEach(cod => {
+        if (!isValidAccount(cod)) return;
+        const saldo = cont[cod] ?? 0;
+        const total = alm[cod] ?? 0;
+        const diff  = saldo - total;
+        if (Math.abs(diff) > 0.0001) { 
+            const id5 = sequence.toString().padStart(5, '0');
+            const valorSql = Math.abs(diff).toFixed(2);
+            const codLimpo = cod.replace(/\./g, '');
+            const reducedCod = dePara[codLimpo] || codLimpo; 
+            const historico = `AJUSTE PATRIMÔNIO CONTA ${codLimpo}`;
+            let grupo, contaDebito, contaCredito, atribDebito, atribCredito;
+            if (diff < 0) {
+                grupo = '001858'; contaDebito = reducedCod; contaCredito = '03028'; atribDebito = "'P'"; atribCredito = "NULL";
+            } else {
+                grupo = '001862'; contaDebito = '05440'; contaCredito = reducedCod; atribDebito = "NULL"; atribCredito = "'P'";      
+            }
+            const sql1 = `insert into LANCAMENTO_PATRIMONIAL (CHAR_ID_EMP, STR_EXR_EXR, ID5_LCMT_PTMAL, D_LCMT_PTMAL, DESC_LCMT_PTMAL, VR_LCMT_PTMAL, ID5_REF_LCMT_PTMAL, STR_ID_T_LCMT, LG_RQLB_AUX) values ('${empresaVal}', '${ano}', '${id5}', '${dataInput}', '${historico}', ${valorSql}, null, 'N', 'N');`;
+            const sql2 = `INSERT INTO LANCAMENTO_PATRIMONIAL_EVTO (CHAR_ID_EMP, STR_EXR_EXR, ID5_LCMT_PTMAL, ID4_LCMT_EVTO, ID6_GRPO_LCP, ID5_DEBT_PLAN_CT_EVTO, ID5_CDTA_PLAN_CT_EVTO, ID3_DEBT_FNTE_EVTO, ID3_CDTA_FNTE_EVTO, ID10_DEBT_RCTA, ID10_CDTA_RCTA, ID2_DEBT_FCAO, ID2_CDTA_FCAO, ID2_DEBT_T_DESP, ID2_CDTA_T_DESP, ID3_DEBT_SFAO, ID3_CDTA_SFAO, ID4_DEBT_EXR_RP, ID4_CDTA_EXR_RP, ID4_DEBT_PGM, ID4_CDTA_PGM, ID5_DEBT_CDR, ID5_CDTA_CDR, CHAR_ID_EMP_CDR, ID5_DEBT_CSCO, ID5_CDTA_CSCO, ID5_DEBT_CT, ID5_CDTA_CT, ID8_DEBT_CT_DESP, ID8_CDTA_CT_DESP, INT_DEBT_DC, INT_CDTA_DC, INT_DEBT_MDE_ASPS, INT_CDTA_MDE_ASPS, STR_DEBT_UND_OCT, STR_CDTA_UND_OCT, STR_DEBT_UND_OCT_ORIG, STR_CDTA_UND_OCT_ORIG, STR_DEBT_ATRB_SF, STR_CDTA_ATRB_SF, STR_DEBT_CSCO_T_RCSO, STR_CDTA_CSCO_T_RCSO, ID4_DEBT_PRAT, ID4_CDTA_PRAT, STR_DEBT_NUM_DESP, STR_CDTA_NUM_DESP, INT_DEBT_BFCO_RPPS, INT_CDTA_BFCO_RPPS, INT_DEBT_EMDA_PLTAR, INT_CDTA_EMDA_PLTAR, ID5_DEBT_DIV_CSDD, ID5_DEBT_EXTA, ID6_DEBT_DRTO_RCBR, ID6_DEBT_GRTIA, ID4_DEBT_PPP, ID6_DEBT_PCTIO, ID6_DEBT_TCE, ID6_DEBT_CGE, ID5_CDTA_DIV_CSDD, ID5_CDTA_EXTA, ID6_CDTA_DRTO_RCBR, ID6_CDTA_GRTIA, ID4_CDTA_PPP, ID6_CDTA_PCTIO, ID6_CDTA_TCE, ID6_CDTA_CGE, ID4_DEBT_ID_CO, ID4_CDTA_ID_CO) VALUES ('${empresaVal}', '${ano}', '${id5}', '0001', '${grupo}', '${contaDebito}', '${contaCredito}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '${empresaVal}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ${atribDebito}, ${atribCredito}, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);`;
+            sqlOutput += sql1 + '\n' + sql2 + '\n\n';
+            sequence++;
+        }
+    });
+    document.getElementById('sqlResult').value = sqlOutput || '-- Sem diferenças.';
+}
+</script>
+
+</body>
+</html>

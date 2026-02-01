@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Comparação Contabilidade x Alm / Pat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Animação suave para o menu de regras */
+        .fade-enter { opacity: 0; transform: translateY(-10px); }
+        .fade-enter-active { opacity: 1; transform: translateY(0); transition: opacity 300ms, transform 300ms; }
+    </style>
+</head>
+<body class="bg-gray-100 p-6">
+
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-xl font-bold text-gray-700">Comparador Contábil</h1>
+        <button onclick="toggleRules()" class="flex items-center gap-2 px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-full text-xs font-bold transition">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+            </svg>
+            Ver Regras / Instruções
+        </button>
+    </div>
+
+    <div id="rulesPanel" class="hidden bg-white border-l-4 border-blue-500 shadow-md rounded p-4 mb-6 text-xs text-gray-700 space-y-2">
+        <h3 class="font-bold text-sm text-blue-700 mb-2">Regras usadas para comparação atos potenciais:</h3>
+        
+        <ul class="list-disc pl-5 space-y-1">
+            <li><strong>Passo 1:</strong> Gerar relatório no módulo contabilidade - <em>Relatórios \ Relatórios Diversos \ Atos Potenciais Passivos - Contratos Vigentes</em>, colocar a data que deseja para comparação, salvar em .txt.</li>
+            <li><strong>Passo 2:</strong> Gerar relatório no módulo contabilidade - <em>Relatórios \ Pcasp \ Balancete de Verificação</em>. Caso queira, filtrar somente as contas referentes aos atos potenciais <em>X.1.2.3.1.99.XX</em>, <em>8.1.2.3.1.99.XX</em> ou gerar todo o balancete com a data desejada. Salvar em .txt.</li>
+            <li><strong>Passo 3:</strong> Carregar no botão <span class="text-blue-600 font-bold">"Carregar ATOS POTENCIAIS PASSIVOS"</span> o arquivo do Passo 1.</li>
+            <li><strong>Passo 4:</strong> Carregar no botão <span class="text-green-600 font-bold">"Carregar CONTA 8123199XX"</span> o arquivo do Passo 2.</li>
+            <li><strong>Passo 5:</strong> Usar o botão <strong>1. COMPARAR E CRUZAR DADOS</strong>. Regra de comparação:
+                <div class="bg-gray-50 p-2 mt-1 rounded border font-mono text-[10px]">
+                    Ato Potencial Passivo a executar (c)=(a-b)  =  8.1.2.3.1.99.01 (A EXECUTAR)<br>
+                    Ato Potencial Passivo em Execucao (e)=(b-d) =  8.1.2.3.1.99.02 (EM EXECUCAO)<br>
+                    Liquidado (d)                               =  8.1.2.3.1.99.03 (EXECUTADOS)
+                </div>
+            </li>
+            <li><strong>Passo 6:</strong> Selecionar a empresa/char_id_emp, o código sequencial de 5 dígitos/id5_lcmt_ptmal e a data/d_lcmt_ptmal.</li>
+            <li><strong>Passo 7:</strong> Clique no botão <strong>2. GERAR INSERT SQL</strong>.</li>
+            <li><strong>Passo 8:</strong> Copie o código e execute no cliente.</li>
+        </ul>
+
+        <hr class="my-2">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p><strong>Obs. 1:</strong> Os valores usados são da linha DIFERENÇA, para igualar o Balancete aos Atos Potenciais.</p>
+                <p><strong>Obs. 2:</strong> Comando gerado para facilitar o acerto de valores.</p>
+                <p><strong>Obs. 3:</strong> Grupos LCP movimentados: <strong>001872</strong> (78.010.N) e <strong>001873</strong> (87.002.N).</p>
+            </div>
+            <div>
+                <p><strong>Obs. 4:</strong> Contas 7 e 8 movimentadas:</p>
+                <ul class="font-mono text-[10px] bg-gray-50 inline-block p-1 border rounded">
+                    <li>712319900 - 03227</li>
+                    <li>812319901 - 03477</li>
+                    <li>812319902 - 03478</li>
+                    <li>812319903 - 03797</li>
+                </ul>
+                <p class="mt-1"><strong>Obs. 5:</strong> Regras apenas para movimentação entre contas 7 e 8 (sem permuta entre contas 8).</p>
+            </div>
+        </div>
+    </div>
+
+<div class="grid grid-cols-2 gap-6">
+
+    <div class="bg-white rounded-xl shadow p-4 flex flex-col gap-2">
+        <div class="flex justify-between items-center">
+            <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm" onclick="fileCont.click()">Carregar ATOS POTENCIAIS PASSIVOS</button>
+            <span id="fileName1" class="text-xs text-gray-600 italic truncate max-w-[150px]">Nenhum arquivo</span>
+        </div>
+        <input id="fileCont" type="file" accept=".txt" class="hidden" onchange="loadFile(event, 1)">
+        <textarea id="view1" class="w-full h-32 text-[10px] bg-gray-50 border border-gray-200 rounded p-2 font-mono text-gray-600 resize-y whitespace-pre overflow-auto" readonly></textarea>
+    </div>
+
+    <div class="bg-white rounded-xl shadow p-4 flex flex-col gap-2">
+        <div class="flex justify-between items-center">
+            <button class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm" onclick="fileAlm.click()">Carregar CONTA 8123199XX</button>
+            <span id="fileName2" class="text-xs text-gray-600 italic truncate max-w-[150px]">Nenhum arquivo</span>
+        </div>
+        <input id="fileAlm" type="file" accept=".txt" class="hidden" onchange="loadFile(event, 2)">
+        <textarea id="view2" class="w-full h-32 text-[10px] bg-gray-50 border border-gray-200 rounded p-2 font-mono text-gray-600 resize-y whitespace-pre overflow-auto" readonly></textarea>
+    </div>
+
+    <div class="col-span-2 bg-white rounded-xl shadow p-4">
+        
+        <div class="mb-6 border-b pb-6">
+            <button class="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 font-bold shadow-md transition-transform active:scale-95 mb-4" onclick="compareFiles()">
+                1. COMPARAR E CRUZAR DADOS
+            </button>
+
+            <div id="resultContainer" class="hidden">
+                <div class="overflow-x-auto border rounded-lg shadow-sm mb-2">
+                    <table class="min-w-full text-xs text-left text-gray-600">
+                        <thead class="bg-gray-100 text-gray-700 uppercase font-bold border-b-2 border-gray-200">
+                            <tr>
+                                <th class="px-4 py-3 w-32 bg-gray-200">Origem</th>
+                                <th class="px-4 py-3 border-r">Valor Contratado (a)</th>
+                                <th class="px-4 py-3 border-r">Valor Empenhado (b)</th>
+                                <th class="px-4 py-3 border-r text-blue-700 bg-blue-50">A Executar (c)</th>
+                                <th class="px-4 py-3 border-r text-orange-700 bg-orange-50">Liquidado (d)</th>
+                                <th class="px-4 py-3 border-r text-blue-700 bg-blue-50">Em Execucao (e)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultTableBody" class="bg-white"></tbody>
+                    </table>
+                </div>
+                <div id="msgErro" class="text-red-600 font-bold text-xs p-2 hidden"></div>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-4">
+            <div class="flex items-end gap-4 flex-wrap bg-gray-50 p-4 rounded border border-gray-200">
+                
+                <div class="flex flex-col">
+                    <label class="text-xs font-bold text-gray-700 mb-1">Empresa (ID):</label>
+                    <input type="text" id="inpEmpresa" value="1" class="w-20 px-2 py-2 border rounded text-sm text-center">
+                </div>
+
+                <div class="flex flex-col">
+                    <label class="text-xs font-bold text-gray-700 mb-1">Sequencial (ID5):</label>
+                    <input type="text" id="inpID5" value="03023" 
+                           class="w-24 px-2 py-2 border rounded text-sm font-mono text-center focus:ring-2 focus:ring-orange-500 outline-none" 
+                           onblur="this.value = this.value.padStart(5, '0')">
+                </div>
+
+                <div class="flex flex-col">
+                    <label class="text-xs font-bold text-gray-700 mb-1">Data:</label>
+                    <input type="date" id="inpData" class="w-32 px-2 py-2 border rounded text-sm">
+                </div>
+
+                <button class="px-6 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 font-bold shadow-md transition-transform active:scale-95 h-[38px]" onclick="generateSQL()">
+                    2. GERAR INSERT SQL
+                </button>
+            </div>
+
+            <div class="relative">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-xs font-bold text-gray-500">Resultado SQL:</span>
+                    <button onclick="copySql()" class="text-xs text-blue-600 hover:underline">Copiar Código</button>
+                </div>
+                <textarea id="sqlOutput" class="w-full h-48 text-xs bg-gray-800 text-green-400 p-3 rounded font-mono" readonly placeholder="O SQL gerado aparecerá aqui..."></textarea>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+let text1 = '';
+let text2 = '';
+let lastDiff = null; 
+
+// --- FUNÇÃO PARA MOSTRAR/OCULTAR REGRAS ---
+function toggleRules() {
+    const panel = document.getElementById('rulesPanel');
+    if (panel.classList.contains('hidden')) {
+        panel.classList.remove('hidden');
+    } else {
+        panel.classList.add('hidden');
+    }
+}
+
+// --- CONFIGURAÇÃO DAS CONTAS E REGRAS ---
+// conta7: Conta Fixa (Classe 7) = '03227'
+// conta8: Conta Variável (Classe 8) dependendo da coluna
+// contaOrigem: O código de 9 dígitos usado no histórico
+const SQL_RULES = {
+    // Coluna C: 8.1.2.3.1.99.01 -> Conta8: 03477
+    c: { conta7: '03227', conta8: '03477', contaOrigem: '812319901' },
+    
+    // Coluna D: 8.1.2.3.1.99.03 -> Conta8: 03797
+    d: { conta7: '03227', conta8: '03797', contaOrigem: '812319903' },
+    
+    // Coluna E: 8.1.2.3.1.99.02 -> Conta8: 03478
+    e: { conta7: '03227', conta8: '03478', contaOrigem: '812319902' }
+};
+
+// --- UTILITÁRIOS ---
+function parseBR(valor) {
+    if (!valor) return 0;
+    const negativo = /^\s*\(.*\)\s*$/.test(valor);
+    const limpo = valor.replace(/[().]/g, '').replace(',', '.'); 
+    const num = parseFloat(limpo);
+    return negativo ? -num : num;
+}
+
+function formatCurrency(val) {
+    if (val === null || val === undefined) return '-';
+    return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// FORMATO: DD.MM.AAAA
+function formatSqlDate(dateStr) {
+    if (!dateStr) return '01.01.2025';
+    const [year, month, day] = dateStr.split('-'); 
+    return `${day}.${month}.${year}`;
+}
+
+function loadFile(event, idx) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const content = e.target.result;
+        if (idx === 1) {
+            text1 = content;
+            document.getElementById('fileName1').textContent = file.name;
+            document.getElementById('view1').value = content;
+        } else {
+            text2 = content;
+            document.getElementById('fileName2').textContent = file.name;
+            document.getElementById('view2').value = content;
+        }
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+function parsePainel1(text) {
+    const lines = text.split('\n');
+    for (let line of lines) {
+        if (/^\s*Total:/i.test(line)) {
+            const parts = line.replace(/^\s*Total:/i, '').trim().split('|');
+            if (parts.length >= 5) {
+                return {
+                    a: parseBR(parts[0].trim()),
+                    b: parseBR(parts[1].trim()),
+                    c: parseBR(parts[2].trim()),
+                    d: parseBR(parts[3].trim()),
+                    e: parseBR(parts[4].trim())
+                };
+            }
+        }
+    }
+    return null;
+}
+
+function parsePainel2(text) {
+    const lines = text.split('\n');
+    const dados = { c: 0, d: 0, e: 0 };
+    const mapContas = {
+        '8.1.2.3.1.99.01': 'c', 
+        '8.1.2.3.1.99.02': 'e', 
+        '8.1.2.3.1.99.03': 'd'
+    };
+
+    lines.forEach(line => {
+        const cleanLine = line.trim();
+        for (const [conta, prop] of Object.entries(mapContas)) {
+            if (cleanLine.startsWith(conta)) {
+                const cols = cleanLine.split(/\s{2,}/);
+                if (cols.length > 1) dados[prop] = parseBR(cols[cols.length - 1]);
+            }
+        }
+    });
+    return dados;
+}
+
+function compareFiles() {
+    const tbody = document.getElementById('resultTableBody');
+    const msgErro = document.getElementById('msgErro');
+    const container = document.getElementById('resultContainer');
+    
+    tbody.innerHTML = '';
+    msgErro.classList.add('hidden');
+    lastDiff = null;
+
+    if (!text1 || !text2) { alert('Carregue os dois arquivos.'); return; }
+
+    const p1 = parsePainel1(text1);
+    const p2 = parsePainel2(text2);
+
+    if (!p1) {
+        msgErro.textContent = 'ERRO: Total não encontrado no Painel 1.';
+        msgErro.classList.remove('hidden');
+        container.classList.remove('hidden');
+        return;
+    }
+
+    lastDiff = {
+        c: p1.c - p2.c,
+        d: p1.d - p2.d,
+        e: p1.e - p2.e
+    };
+
+    container.classList.remove('hidden');
+
+    const createRow = (label, data, isDiff) => {
+        const tr = document.createElement('tr');
+        tr.className = isDiff ? "font-bold bg-gray-50 border-t-2" : "border-b hover:bg-gray-50";
+        const style = (val) => isDiff && Math.abs(val) > 0.01 ? 'text-red-600' : 'text-gray-600';
+        
+        tr.innerHTML = `
+            <td class="px-4 py-3 ${isDiff ? 'text-gray-800' : 'text-gray-500'}">${label}</td>
+            <td class="px-4 py-3 text-gray-400">${data.a !== undefined ? formatCurrency(data.a) : '-'}</td>
+            <td class="px-4 py-3 text-gray-400">${data.b !== undefined ? formatCurrency(data.b) : '-'}</td>
+            <td class="px-4 py-3 bg-blue-50/50 ${style(data.c)}">${formatCurrency(data.c)}</td>
+            <td class="px-4 py-3 bg-orange-50/50 ${style(data.d)}">${formatCurrency(data.d)}</td>
+            <td class="px-4 py-3 bg-blue-50/50 ${style(data.e)}">${formatCurrency(data.e)}</td>
+        `;
+        tbody.appendChild(tr);
+    };
+
+    createRow('Painel 1', p1, false);
+    createRow('Painel 2', p2, false);
+    createRow('DIFERENÇA', lastDiff, true);
+}
+
+function generateSQL() {
+    if (!lastDiff) {
+        alert('Por favor, execute "Comparar" primeiro.');
+        return;
+    }
+
+    const empresa = document.getElementById('inpEmpresa').value.trim();
+    // Força o preenchimento de zeros ao obter o valor para gerar o SQL, caso o usuário não tenha disparado o onblur
+    let id5Input = document.getElementById('inpID5').value.trim();
+    id5Input = id5Input.padStart(5, '0');
+    document.getElementById('inpID5').value = id5Input; // Atualiza visualmente também se for o caso
+
+    const dataInput = document.getElementById('inpData').value;
+    
+    if (!empresa || !id5Input || !dataInput) {
+        alert('Preencha Empresa, Sequencial e Data.');
+        return;
+    }
+
+    const dataFormatted = formatSqlDate(dataInput); // DD.MM.AAAA
+    const ano = dataInput.split('-')[0];
+    let sqlOutput = '';
+    let seq = parseInt(id5Input); 
+
+    // Função interna para gerar o bloco
+    const criarBloco = (tipo, valorDiff, regraContas) => {
+        // Ignora valores muito próximos de zero
+        if (Math.abs(valorDiff) < 0.01) return '';
+        
+        let grupo = '';
+        let contaDebito = '';
+        let contaCredito = '';
+
+        // --- LÓGICA DE SINAL ---
+        if (valorDiff > 0) {
+            // POSITIVO: Grupo 001872, D=7, C=8
+            grupo = '001872';
+            contaDebito = regraContas.conta7;
+            contaCredito = regraContas.conta8;
+        } else {
+            // NEGATIVO: Grupo 001873, D=8, C=7
+            grupo = '001873';
+            contaDebito = regraContas.conta8;
+            contaCredito = regraContas.conta7;
+        }
+
+        const currentId5 = seq.toString().padStart(5, '0');
+        const valorSql = Math.abs(valorDiff).toFixed(2);
+        
+        // Histórico Personalizado
+        const historico = `AJUSTE CONTA ATOS POTENCIAIS PASSIVOS ${regraContas.contaOrigem}`;
+        
+        // SQL 1: Cabeçalho com Histórico
+        const sql1 = `INSERT INTO LANCAMENTO_PATRIMONIAL (CHAR_ID_EMP, STR_EXR_EXR, ID5_LCMT_PTMAL, D_LCMT_PTMAL, DESC_LCMT_PTMAL, VR_LCMT_PTMAL, ID5_REF_LCMT_PTMAL, STR_ID_T_LCMT, LG_RQLB_AUX) VALUES ('${empresa}', '${ano}', '${currentId5}', '${dataFormatted}', '${historico}', ${valorSql}, NULL, 'N', 'N');`;
+
+        // SQL 2: Evento
+        const sql2 = `INSERT INTO LANCAMENTO_PATRIMONIAL_EVTO (CHAR_ID_EMP, STR_EXR_EXR, ID5_LCMT_PTMAL, ID4_LCMT_EVTO, ID6_GRPO_LCP, ID5_DEBT_PLAN_CT_EVTO, ID5_CDTA_PLAN_CT_EVTO, ID3_DEBT_FNTE_EVTO, ID3_CDTA_FNTE_EVTO, ID10_DEBT_RCTA, ID10_CDTA_RCTA, ID2_DEBT_FCAO, ID2_CDTA_FCAO, ID2_DEBT_T_DESP, ID2_CDTA_T_DESP, ID3_DEBT_SFAO, ID3_CDTA_SFAO, ID4_DEBT_EXR_RP, ID4_CDTA_EXR_RP, ID4_DEBT_PGM, ID4_CDTA_PGM, ID5_DEBT_CDR, ID5_CDTA_CDR, CHAR_ID_EMP_CDR, ID5_DEBT_CSCO, ID5_CDTA_CSCO, ID5_DEBT_CT, ID5_CDTA_CT, ID8_DEBT_CT_DESP, ID8_CDTA_CT_DESP, INT_DEBT_DC, INT_CDTA_DC, INT_DEBT_MDE_ASPS, INT_CDTA_MDE_ASPS, STR_DEBT_UND_OCT, STR_CDTA_UND_OCT, STR_DEBT_UND_OCT_ORIG, STR_CDTA_UND_OCT_ORIG, STR_DEBT_ATRB_SF, STR_CDTA_ATRB_SF, STR_DEBT_CSCO_T_RCSO, STR_CDTA_CSCO_T_RCSO, ID4_DEBT_PRAT, ID4_CDTA_PRAT, STR_DEBT_NUM_DESP, STR_CDTA_NUM_DESP, INT_DEBT_BFCO_RPPS, INT_CDTA_BFCO_RPPS, INT_DEBT_EMDA_PLTAR, INT_CDTA_EMDA_PLTAR, ID5_DEBT_DIV_CSDD, ID5_DEBT_EXTA, ID6_DEBT_DRTO_RCBR, ID6_DEBT_GRTIA, ID4_DEBT_PPP, ID6_DEBT_PCTIO, ID6_DEBT_TCE, ID6_DEBT_CGE, ID5_CDTA_DIV_CSDD, ID5_CDTA_EXTA, ID6_CDTA_DRTO_RCBR, ID6_CDTA_GRTIA, ID4_CDTA_PPP, ID6_CDTA_PCTIO, ID6_CDTA_TCE, ID6_CDTA_CGE, ID4_DEBT_ID_CO, ID4_CDTA_ID_CO) VALUES ('${empresa}', '${ano}', '${currentId5}', '0001', '${grupo}', '${contaDebito}', '${contaCredito}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '${empresa}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);`;
+
+        seq++;
+        return `-- Dif. ${tipo}: ${valorDiff > 0 ? '(+)' : '(-)'} ${valorSql} | Grp: ${grupo} | ${historico}\n${sql1}\n${sql2}\n\n`;
+    };
+
+    sqlOutput += criarBloco('C (A Executar)', lastDiff.c, SQL_RULES.c);
+    sqlOutput += criarBloco('D (Liquidado)', lastDiff.d, SQL_RULES.d);
+    sqlOutput += criarBloco('E (Em Execução)', lastDiff.e, SQL_RULES.e);
+
+    if (!sqlOutput) sqlOutput = '-- Nenhuma diferença encontrada para gerar inserts.';
+
+    document.getElementById('sqlOutput').value = sqlOutput;
+}
+
+function copySql() {
+    const copyText = document.getElementById("sqlOutput");
+    if(!copyText.value) return;
+    copyText.select();
+    navigator.clipboard.writeText(copyText.value);
+    alert('Copiado!');
+}
+</script>
+
+</body>
+</html>

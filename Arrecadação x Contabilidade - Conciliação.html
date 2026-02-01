@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Gerador Contábil + SQL (ID Formatado - Strict Mode)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .col-money { text-align: right; font-family: monospace; }
+        .row-diff { background-color: #fee2e2; } 
+        .row-ok { background-color: #f8fafc; } 
+        .conta-mae { font-weight: bold; color: #4338ca; background-color: #e0e7ff; }
+        .conta-filha { padding-left: 2rem; color: #4b5563; font-style: italic; }
+        .col-cross { background-color: #f0fdf4; border-left: 2px solid #16a34a; color: #15803d; font-weight: bold; }
+        
+        /* Modal Styles */
+        .modal { display: none; position: fixed; z-index: 50; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 2% auto; padding: 20px; border: 1px solid #888; width: 90%; height: 90%; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        
+        .modal-error-content { background-color: #fff5f5; border: 1px solid #fc8181; }
+    </style>
+</head>
+<body class="bg-gray-100 p-6 flex flex-col gap-6 min-h-screen">
+
+<div class="grid grid-cols-2 gap-6 h-96">
+    <div class="bg-white rounded-xl shadow p-4 flex flex-col gap-2 h-full border-t-4 border-blue-600">
+        <div class="flex flex-col gap-2">
+            <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold text-sm transition-colors" onclick="fileCont.click()">1 - CONTABILIDADE - IC Sistema 03 (.txt)</button>
+            <input id="fileCont" type="file" accept=".txt" class="hidden" onchange="loadFile(event, 1)">
+            <span id="fileName1" class="text-xs text-gray-600 italic">Nenhum arquivo</span>
+        </div>
+        <textarea id="preview1" class="w-full flex-1 bg-gray-50 border border-gray-200 rounded p-2 text-xs font-mono text-gray-700 resize-none focus:outline-none focus:border-blue-400 whitespace-pre overflow-x-auto" readonly placeholder="Cole ou carregue o arquivo aqui..."></textarea>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4 flex flex-col gap-2 h-full border-t-4 border-green-600">
+        <div class="flex flex-col gap-2">
+            <button class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-bold text-sm transition-colors" onclick="fileAlm.click()">2 - ARRECADAÇÃO - Relatório Fechamento (.txt)</button>
+            <input id="fileAlm" type="file" accept=".txt" class="hidden" onchange="loadFile(event, 2)">
+            <span id="fileName2" class="text-xs text-gray-600 italic">Nenhum arquivo</span>
+        </div>
+        <textarea id="preview2" class="w-full flex-1 bg-gray-50 border border-gray-200 rounded p-2 text-xs font-mono text-gray-700 resize-none focus:outline-none focus:border-green-400 whitespace-pre overflow-x-auto" readonly placeholder="Cole ou carregue o arquivo aqui..."></textarea>
+    </div>
+</div>
+
+<div class="bg-white p-4 rounded-xl shadow flex flex-wrap justify-center items-end gap-4">
+    <div>
+        <button onclick="processarComparacao()" class="bg-indigo-600 text-white px-8 py-3 rounded-lg shadow hover:bg-indigo-700 font-bold text-lg transition-transform hover:scale-105 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+            PROCESSAR VALIDAÇÃO
+        </button>
+    </div>
+    <div class="h-12 w-px bg-gray-300 mx-2"></div>
+    <div class="flex flex-col gap-1">
+        <label class="text-xs font-bold text-gray-600 uppercase">ID Empresa</label>
+        <input type="text" id="empresaId" value="1" class="border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-purple-500 text-center w-24">
+    </div>
+    <div class="flex flex-col gap-1">
+        <label class="text-xs font-bold text-gray-600 uppercase">Seq. Inicial (ID5)</label>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" id="seqInicial" value="03000" 
+               onblur="this.value = this.value.padStart(5, '0')"
+               class="border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-purple-500 text-center w-32 font-mono">
+    </div>
+    <div class="flex flex-col gap-1">
+        <label class="text-xs font-bold text-gray-600 uppercase">Data do Insert</label>
+        <input type="date" id="dataInsert" class="border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-purple-500">
+    </div>
+    <div>
+        <button onclick="gerarSQL()" class="bg-purple-600 text-white px-6 py-3 rounded-lg shadow hover:bg-purple-700 font-bold text-lg transition-transform hover:scale-105 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
+            GERAR INSERTS
+        </button>
+    </div>
+</div>
+
+<div id="resultPanel" class="bg-white rounded-xl shadow p-4 hidden flex-col gap-4 min-h-0 flex-1">
+    <h2 class="text-lg font-bold text-gray-700 border-b pb-2 flex justify-between"><span>Resultado (Status Calculado)</span></h2>
+    <div class="overflow-auto rounded border border-gray-200 max-h-[600px]">
+        <table class="w-full text-sm text-left text-gray-600">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 shadow-sm z-10">
+                <tr>
+                    <th class="px-6 py-3">Estrutura de Contas</th>
+                    <th class="px-6 py-3 text-right">Saldo P1</th>
+                    <th class="px-6 py-3 text-right">Saldo P2</th>
+                    <th class="px-6 py-3 text-right">Diferença</th>
+                    <th class="px-6 py-3 text-right text-blue-700 bg-blue-50 border-l border-blue-100">RES ESPERADO</th>
+                    <th class="px-6 py-3 text-right col-cross">1125/1126 X 8323</th>
+                    <th class="px-6 py-3 text-center">Status</th>
+                </tr>
+            </thead>
+            <tbody id="tabelaResultado" class="font-mono"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="missingModal" class="modal">
+    <div class="modal-content modal-error-content flex flex-col gap-4">
+        <div class="flex justify-between items-center border-b border-red-200 pb-2">
+            <h3 class="text-xl font-bold text-red-700 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                Contas Faltantes no De/Para
+            </h3>
+            <button onclick="document.getElementById('missingModal').style.display='none'" class="text-red-400 hover:text-red-700 text-2xl font-bold">&times;</button>
+        </div>
+        <div class="flex-1 overflow-hidden flex flex-col">
+            <p class="text-sm text-red-800 mb-2 font-semibold">As seguintes contas não foram encontradas na tabela de relacionamento. O SQL será gerado utilizando o número original da conta como fallback.</p>
+            <textarea id="missingOutput" class="w-full flex-1 bg-white text-red-600 font-mono p-4 rounded text-sm resize-none focus:outline-none border border-red-300" readonly></textarea>
+        </div>
+        <div class="flex justify-end gap-2">
+            <button onclick="copiarMissing()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-bold">Copiar Lista</button>
+            <button onclick="abrirSQLModal()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 font-bold">Ignorar e Ver SQL</button>
+        </div>
+    </div>
+</div>
+
+<div id="sqlModal" class="modal">
+    <div class="modal-content flex flex-col gap-4">
+        <div class="flex justify-between items-center border-b pb-2">
+            <h3 class="text-xl font-bold text-gray-800">Script SQL Gerado</h3>
+            <button onclick="document.getElementById('sqlModal').style.display='none'" class="text-gray-500 hover:text-red-500 text-2xl font-bold">&times;</button>
+        </div>
+        <div class="flex-1 overflow-hidden flex flex-col">
+            <textarea id="sqlOutput" class="w-full flex-1 bg-gray-800 text-green-400 font-mono p-4 rounded text-sm resize-none focus:outline-none whitespace-pre" readonly></textarea>
+        </div>
+        <div class="flex justify-end gap-2">
+            <button onclick="copiarSQL()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 font-bold">Copiar Código</button>
+            <button onclick="document.getElementById('sqlModal').style.display='none'" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 font-bold">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let text1 = '';
+let text2 = '';
+let dadosProcessadosGlobal = []; 
+
+// === TABELA DE/PARA (Mapeamento de IDs) ===
+const mapDePara = {
+    "113810200": "00315",
+    "113811400": "00326",
+    "112119900": "04849",
+    "112510199": "04868",
+    "112619900": "04879",
+    "112610400": "04878",
+    "113310100": "00301",
+    "113810100": "00314",
+    "112110101": "00021", "112110105": "00022", "112110106": "00023", "112110107": "00024", "112110108": "00025",
+    "112110199": "00026", "112110201": "00027", "112110202": "00028", "112110301": "00029", "112110401": "00030",
+    "112117000": "00031", "112120101": "00032", "112120105": "00033", "112120106": "00034", "112120107": "00035",
+    "112120108": "00036", "112120199": "00037", "112120201": "00038", "112120202": "00039", "112120301": "00040",
+    "112120401": "00041", "112127000": "00042", "112130101": "00043", "112130105": "00044", "112130106": "00045",
+    "112130107": "00046", "112130108": "00047", "112130199": "00048", "112130201": "00049", "112130202": "00050",
+    "112130301": "00051", "112130401": "00052", "112137000": "00053", "112140101": "00054", "112140105": "00055",
+    "112140106": "00056", "112140107": "00057", "112140108": "00058", "112140199": "00059", "112140201": "00060",
+    "112140202": "00061", "112140301": "00062", "112140401": "00063", "112147000": "00064", "112150101": "00065",
+    "112150105": "00066", "112150106": "00067", "112150107": "00068", "112150108": "00069", "112150199": "00070",
+    "112150201": "00071", "112150202": "00072", "112150301": "00073", "112150401": "00074", "112157000": "00075",
+    "112210100": "00077", "112210300": "00079", "112220100": "00081", "112220300": "00083", "112230100": "00085",
+    "112230300": "00087", "112240100": "00089", "112240300": "00091", "112250100": "00093", "112250300": "00095",
+    "112310100": "00097", "112310200": "00098", "112330102": "00099", "112330103": "00100", "112330104": "00101",
+    "112330105": "00102", "112330201": "00103", "112330202": "00104", "112330203": "00105", "112330300": "00106",
+    "112330400": "00107", "112330501": "00108", "112330601": "00109", "112330701": "00110", "112330800": "00111",
+    "112330900": "00112", "112340101": "00113", "112340102": "00114", "112410101": "00115", "112410201": "00116",
+    "112410301": "00117", "112410302": "00118", "112410701": "00119", "112410702": "00120", "112410703": "00121",
+    "112410704": "00122", "112420101": "00123", "112420201": "00124", "112420301": "00125", "112420302": "00126",
+    "112420701": "00127", "112420702": "00128", "112420703": "00129", "112420704": "00130", "112430101": "00131",
+    "112430201": "00132", "112430301": "00133", "112430302": "00134", "112430701": "00135", "112430702": "00136",
+    "112430703": "00137", "112430704": "00138", "112440101": "00139", "112440201": "00140", "112440301": "00141",
+    "112440302": "00142", "112440701": "00143", "112440702": "00144", "112440703": "00145", "112440704": "00146",
+    "112450101": "00147", "112450201": "00148", "112450301": "00149", "112450302": "00150", "112450701": "00151",
+    "112450702": "00152", "112450703": "00153", "112450704": "00154", "112510101": "00155", "112510105": "00156",
+    "112510106": "00157", "112510107": "00158", "112510108": "00159", "112510201": "00160", "112510202": "00161",
+    "112510301": "00162", "112510401": "00163", "112510500": "00164", "112520101": "00167", "112520105": "00168",
+    "112520106": "00169", "112520107": "00170", "112520108": "00171", "112520201": "00172", "112520202": "00173",
+    "112520301": "00174", "112520401": "00175", "112530101": "00177", "112530105": "00178", "112530106": "00179",
+    "112530107": "00180", "112530108": "00181", "112530201": "00182", "112530202": "00183", "112530301": "00184",
+    "112530401": "00185", "112540101": "00187", "112540105": "00188", "112540106": "00189", "112540107": "00190",
+    "112540108": "00191", "112540201": "00192", "112540202": "00193", "112540301": "00194", "112540401": "00195",
+    "112550101": "00197", "112550105": "00198", "112550106": "00199", "112550107": "00200", "112550108": "00201",
+    "112550201": "00202", "112550202": "00203", "112550301": "00204", "112550401": "00205", "112610100": "00207",
+    "112620100": "00208", "112630100": "00209", "112640100": "00210", "112650100": "00211",
+    "832319900": "05702",
+    "732110000": "03610",
+    "832329900": "05703",
+    "732120000": "03611"
+};
+
+function loadFile(event, idx) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        if (idx === 1) {
+            text1 = e.target.result;
+            document.getElementById('fileName1').textContent = file.name;
+            document.getElementById('preview1').value = text1;
+        } else {
+            text2 = e.target.result;
+            document.getElementById('fileName2').textContent = file.name;
+            document.getElementById('preview2').value = text2;
+        }
+    };
+    reader.readAsText(file, 'ISO-8859-1');
+}
+
+function parseMoney(valorStr) {
+    if (!valorStr) return 0;
+    const cleanStr = valorStr.trim().toUpperCase();
+    const isCredit = cleanStr.endsWith('C'); 
+    let numberPart = cleanStr.replace(/[^\d,.]/g, '').replace(/\./g, '').replace(',', '.');
+    let num = parseFloat(numberPart);
+    if (isNaN(num)) return 0;
+    if (isCredit) return -num;
+    return num;
+}
+
+function parsePanel1Ordered(text) {
+    const rows = [];
+    let rawLines = text.split(/\r?\n/);
+    
+    const lines = rawLines.filter(line => {
+        const t = line.trim();
+        if (!t) return false;
+        
+        if (t.startsWith('SH3 Sistemas')) return false;
+        if (t.includes('Emissao:') && t.includes('Pagina:')) return false;
+        if (t.includes('PREFEITURA')) return false; 
+        if (t.includes('CONTABILIDADE')) return false;
+        if (t.includes('BALANCETE')) return false;
+        if (t.startsWith('=')) return false; 
+        
+        if (t.startsWith('-') && !/[a-zA-Z0-9]/.test(t)) return false; 
+        
+        if (t.startsWith('|')) return false; 
+        if (t === 'Us') return false; 
+        return true;
+    });
+
+    const regexValor = /(\d{1,3}(?:\.\d{3})*,\d{2})\s*[DC]?\s*$/i;
+
+    let currentParentCode = null; 
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        let conta = null;
+        let tipo = 'normal'; 
+        let valor = 0;
+
+        const matchValor = line.match(regexValor);
+        if (matchValor) {
+            valor = parseMoney(matchValor[0]);
+        }
+
+        const indexFilha = 33; 
+        let partFilha = "";
+        if (line.length > indexFilha) {
+            partFilha = line.substring(indexFilha);
+        }
+
+        const matchFilha = partFilha.match(/^\s*(\d{5,})/);
+
+        if (matchFilha) {
+            conta = matchFilha[1];
+            tipo = 'filha';
+        } else {
+            const matchInicio = line.match(/^\s*([\d\.]+)/);
+            if (matchInicio) {
+                const rawCode = matchInicio[1].replace(/\./g, '');
+                if (rawCode.length >= 4) {
+                    conta = rawCode;
+                    if (conta.startsWith('1') || conta.startsWith('7') || conta.startsWith('8') || conta.startsWith('9')) { 
+                        tipo = 'mae';
+                    }
+                }
+            }
+        }
+
+        if (conta && !matchValor) { 
+            for (let offset = 1; offset <= 3; offset++) {
+                if (i + offset >= lines.length) break;
+                const nextLine = lines[i + offset];
+                
+                if (nextLine.match(/^\s*(\d{5,}|[\d\.]+)/)) {
+                    break; 
+                }
+
+                const matchNextVal = nextLine.match(regexValor);
+                if (matchNextVal) {
+                    valor = parseMoney(matchNextVal[0]);
+                    break;
+                }
+            }
+        }
+
+        if (conta) {
+            const digitos = conta.replace(/\D/g, '');
+            if (digitos.length === 9) {
+                currentParentCode = digitos;
+                tipo = 'mae';
+            }
+            
+            rows.push({
+                conta: conta,
+                valor: valor,
+                tipo: tipo,
+                pai: (tipo === 'filha') ? currentParentCode : null 
+            });
+        }
+    }
+    return rows;
+}
+
+// --- FUNÇÃO DE PARSING DO PAINEL 2 AJUSTADA ---
+function parsePanel2Data(text) {
+    const mapFlat = {}; 
+    const mapStructured = {}; 
+    
+    const lines = text.split(/\r?\n/);
+    
+    const regexConta = /^\s*([\d\.]+)/;
+    const regexValor = /(\d{1,3}(?:\.\d{3})*,\d{2})\s*[DC]?\s*$/i;
+
+    let currentParent = null;
+
+    lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        
+        const matchConta = trimmed.match(regexConta);
+        const matchValor = trimmed.match(regexValor);
+
+        if (matchConta && matchValor) {
+            const codeRaw = matchConta[1].replace(/\./g, '');
+            const val = parseMoney(matchValor[0]);
+            
+            if (codeRaw.length === 9) {
+                currentParent = codeRaw;
+            }
+            
+            mapFlat[codeRaw] = (mapFlat[codeRaw] || 0) + val;
+
+            if (currentParent) {
+                if (!mapStructured[currentParent]) {
+                    mapStructured[currentParent] = {};
+                }
+                // AJUSTE: Soma acumulativa caso haja linhas repetidas ou quebras
+                mapStructured[currentParent][codeRaw] = (mapStructured[currentParent][codeRaw] || 0) + val;
+            }
+        } else if (matchConta && !matchValor) {
+            const codeRaw = matchConta[1].replace(/\./g, '');
+            if (codeRaw.length === 9) {
+                currentParent = codeRaw;
+            }
+        }
+    });
+
+    return { flat: mapFlat, structured: mapStructured };
+}
+
+function processarComparacao() {
+    if (!text1 && !text2) {
+        text1 = document.getElementById('preview1').value;
+        text2 = document.getElementById('preview2').value;
+    }
+    
+    if (!text1) {
+        alert("O Painel 1 (Estrutura) é obrigatório.");
+        return;
+    }
+
+    const dadosRaw = parsePanel1Ordered(text1);
+    
+    const dadosP2 = parsePanel2Data(text2 || "");
+    const map2Flat = dadosP2.flat;
+    const map2Struct = dadosP2.structured;
+
+    const dadosFiltrados = [];
+    
+    dadosRaw.forEach(item => {
+        const apenasDigitos = item.conta.replace(/\D/g, '');
+        const qtdDigitos = apenasDigitos.length;
+
+        if (qtdDigitos === 9) {
+            item.tipo = 'mae'; 
+            dadosFiltrados.push(item);
+        } 
+        else if (qtdDigitos === 8) {
+            item.tipo = 'filha';
+            dadosFiltrados.push(item);
+        }
+    });
+
+    const tbody = document.getElementById('tabelaResultado');
+    tbody.innerHTML = '';
+    const contasUsadasP2 = new Set();
+    const lookup8323 = {}; 
+    
+    dadosProcessadosGlobal = []; 
+
+    dadosFiltrados.forEach(item => {
+        const conta = item.conta;
+        const v1 = item.valor;
+        let v2 = 0;
+        let ignorarGrupoP2 = false;
+
+        let codigoParaVerificar = item.conta;
+        if (item.tipo === 'filha' && item.pai) {
+            codigoParaVerificar = item.pai;
+        }
+
+        if (!codigoParaVerificar.startsWith('1')) {
+            ignorarGrupoP2 = true;
+        }
+
+        // --- LÓGICA DE COMPARAÇÃO ATUALIZADA (STRICT MODE) ---
+        // REGRA: Se for filha (8 dígitos) e tiver pai, SÓ pode comparar se o pai também corresponder no P2.
+        
+        if (item.tipo === 'filha' && item.pai) {
+            // Verifica se existe o PAI no P2 e se existe a CONTA dentro desse pai
+            if (map2Struct[item.pai] && map2Struct[item.pai][conta] !== undefined) {
+                v2 = ignorarGrupoP2 ? 0 : map2Struct[item.pai][conta];
+                contasUsadasP2.add(conta); 
+            } else {
+                // Se não tem correspondência exata (PAI + FILHO), considera 0,00
+                v2 = 0;
+            }
+        } 
+        else {
+            // Fallback para contas mãe (9 dígitos) ou casos sem pai definido
+            if (map2Flat.hasOwnProperty(conta)) {
+                contasUsadasP2.add(conta);
+                v2 = ignorarGrupoP2 ? 0 : map2Flat[conta];
+            }
+        }
+
+        const diff = v1 - v2;
+        const resEsperado = v1 - diff; 
+
+        item.calcDiff = diff;
+        item.calcResEsperado = resEsperado;
+        item.calcV2 = v2;
+        item.calcIgnorarP2 = ignorarGrupoP2;
+
+        if (item.tipo === 'filha' && item.pai && item.pai.startsWith('8323')) {
+            lookup8323[conta] = diff;
+        }
+        
+        dadosProcessadosGlobal.push(item);
+    });
+
+    dadosFiltrados.forEach(item => {
+        const conta = item.conta;
+        const v1 = item.valor;
+        const v2 = item.calcV2;
+        const diff = item.calcDiff;
+        const resEsperado = item.calcResEsperado;
+        const ignorarGrupoP2 = item.calcIgnorarP2;
+
+        const temDiferenca = Math.abs(diff) > 0.01;
+        let statusHtml = '';
+        let rowClass = '';
+        let cellClass = '';
+        let crossValue = 0; 
+
+        let hasCrossCalc = false;
+        // ATUALIZAÇÃO AQUI: INCLUÍDO 1126 NA LÓGICA DE VALIDAÇÃO CRUZADA
+        if (item.tipo === 'filha' && item.pai && (item.pai.startsWith('1125') || item.pai.startsWith('1126'))) {
+            if (lookup8323.hasOwnProperty(conta)) {
+                const diff8323 = lookup8323[conta];
+                crossValue = resEsperado + diff8323;
+                hasCrossCalc = true;
+            }
+        }
+
+        if (hasCrossCalc) {
+            const checkSum = diff + crossValue;
+            if (Math.abs(checkSum) < 0.01) {
+                statusHtml = '<span class="text-green-600 font-bold text-xs">OK</span>';
+            } else {
+                const valRestante = checkSum * -1;
+                statusHtml = `<span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">${valRestante.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>`;
+            }
+            rowClass = (Math.abs(checkSum) < 0.01) ? 'row-ok' : 'row-diff';
+        } else {
+            if (item.tipo === 'mae') {
+                rowClass = 'conta-mae';
+                statusHtml = '<span class="text-blue-800 text-xs font-bold">ESTRUTURA</span>';
+            } else {
+                cellClass = 'conta-filha';
+                rowClass = temDiferenca ? 'row-diff' : 'row-ok';
+                
+                if (ignorarGrupoP2) {
+                      if (temDiferenca) {
+                        statusHtml = '<span class="bg-gray-200 text-gray-800 px-2 py-1 rounded text-xs">P1 (P2 Ignorado)</span>';
+                    } else {
+                        statusHtml = '<span class="text-green-600 font-bold text-xs">Zerado</span>';
+                    }
+                } else {
+                    if (conta === "11125003" && v2 === 0 && map2Flat.hasOwnProperty(conta)) {
+                          statusHtml = '<span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">Diferença (Ignorado Outro Grupo)</span>';
+                    }
+                    else if (!map2Flat.hasOwnProperty(conta) && v2 === 0) {
+                        statusHtml = '<span class="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs">Falta no P2</span>';
+                    } else if (temDiferenca) {
+                        statusHtml = '<span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">Diferença</span>';
+                    } else {
+                        statusHtml = '<span class="text-green-600 font-bold text-xs">OK</span>';
+                    }
+                }
+            }
+        }
+
+        if (item.tipo === 'mae') {
+             cellClass = ''; 
+             if (!hasCrossCalc && temDiferenca && v2 !== 0 && !ignorarGrupoP2) {
+                 statusHtml = '<span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">Divergente</span>';
+             }
+        } else {
+             cellClass = 'conta-filha';
+        }
+
+        const tr = document.createElement('tr');
+        tr.className = rowClass + " border-b hover:bg-gray-50 transition-colors";
+
+        const crossCell = hasCrossCalc 
+            ? `<td class="px-6 py-3 col-money col-cross">${crossValue.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`
+            : `<td class="px-6 py-3 col-money text-gray-300">-</td>`;
+
+        tr.innerHTML = `
+            <td class="px-6 py-3 ${cellClass}">
+                ${item.tipo === 'filha' ? '↳ ' : ''} ${conta}
+            </td>
+            <td class="px-6 py-3 col-money font-medium">${v1.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+            <td class="px-6 py-3 col-money text-gray-600">${v2 !== 0 || (!ignorarGrupoP2 && item.tipo !== 'mae') ? v2.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '-'}</td>
+            <td class="px-6 py-3 col-money font-bold ${temDiferenca && item.tipo !== 'mae' ? 'text-red-600' : 'text-gray-400'}">
+                ${diff.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+            </td>
+            <td class="px-6 py-3 col-money font-bold text-blue-700 bg-blue-50 border-l border-blue-100">
+                ${resEsperado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+            </td>
+            ${crossCell}
+            <td class="px-6 py-3 text-center">
+                ${statusHtml}
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    Object.keys(map2Flat).forEach(contaP2 => {
+        if (!contasUsadasP2.has(contaP2)) {
+            const v2 = map2Flat[contaP2];
+            const tr = document.createElement('tr');
+            tr.className = "bg-orange-50 border-b border-orange-200";
+            tr.innerHTML = `
+                <td class="px-6 py-3 font-bold text-orange-700">${contaP2} <span class="text-xs font-normal">(Extra no P2)</span></td>
+                <td class="px-6 py-3 col-money text-gray-400">0,00</td>
+                <td class="px-6 py-3 col-money font-bold text-orange-700">${v2.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                <td class="px-6 py-3 col-money text-red-500">${(0 - v2).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                <td class="px-6 py-3 col-money text-blue-700 bg-blue-50 border-l border-blue-100">0,00</td>
+                <td class="px-6 py-3 col-money text-gray-300">-</td>
+                <td class="px-6 py-3 text-center">
+                    <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">Não existe no P1</span>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+    });
+
+    document.getElementById('resultPanel').classList.remove('hidden');
+    document.getElementById('resultPanel').classList.add('flex');
+}
+
+// --- FUNÇÃO GERAR SQL (ATUALIZADA) ---
+function gerarSQL() {
+    const dataInput = document.getElementById('dataInsert').value;
+    const empId = document.getElementById('empresaId').value || '1';
+    let seqInput = document.getElementById('seqInicial').value || '03000';
+    let sequencial = parseInt(seqInput, 10);
+
+    if (!dataInput) {
+        alert("Por favor, selecione uma data para o insert.");
+        return;
+    }
+
+    if (dadosProcessadosGlobal.length === 0) {
+        alert("Processe a comparação primeiro para gerar o SQL.");
+        return;
+    }
+
+    const [ano, mes, dia] = dataInput.split('-');
+    const dataFormatada = `${dia}.${mes}.${ano}`;
+
+    let sqlBuffer = "";
+    const contasSemDePara = new Set();
+
+    const insertHeaderPat = "insert into LANCAMENTO_PATRIMONIAL (CHAR_ID_EMP, STR_EXR_EXR, ID5_LCMT_PTMAL, D_LCMT_PTMAL, DESC_LCMT_PTMAL, VR_LCMT_PTMAL, ID5_REF_LCMT_PTMAL, STR_ID_T_LCMT, LG_RQLB_AUX) values";
+    const insertHeaderEvto = "insert into LANCAMENTO_PATRIMONIAL_EVTO (CHAR_ID_EMP, STR_EXR_EXR, ID5_LCMT_PTMAL, ID4_LCMT_EVTO, ID6_GRPO_LCP, ID5_DEBT_PLAN_CT_EVTO, ID5_CDTA_PLAN_CT_EVTO, ID3_DEBT_FNTE_EVTO, ID3_CDTA_FNTE_EVTO, ID10_DEBT_RCTA, ID10_CDTA_RCTA, ID2_DEBT_FCAO, ID2_CDTA_FCAO, ID2_DEBT_T_DESP, ID2_CDTA_T_DESP, ID3_DEBT_SFAO, ID3_CDTA_SFAO, ID4_DEBT_EXR_RP, ID4_CDTA_EXR_RP, ID4_DEBT_PGM, ID4_CDTA_PGM, ID5_DEBT_CDR, ID5_CDTA_CDR, CHAR_ID_EMP_CDR, ID5_DEBT_CSCO, ID5_CDTA_CSCO, ID5_DEBT_CT, ID5_CDTA_CT, ID8_DEBT_CT_DESP, ID8_CDTA_CT_DESP, INT_DEBT_DC, INT_CDTA_DC, INT_DEBT_MDE_ASPS, INT_CDTA_MDE_ASPS, STR_DEBT_UND_OCT, STR_CDTA_UND_OCT, STR_DEBT_UND_OCT_ORIG, STR_CDTA_UND_OCT_ORIG, STR_DEBT_ATRB_SF, STR_CDTA_ATRB_SF, STR_DEBT_CSCO_T_RCSO, STR_CDTA_CSCO_T_RCSO, ID4_DEBT_PRAT, ID4_CDTA_PRAT, STR_DEBT_NUM_DESP, STR_CDTA_NUM_DESP, INT_DEBT_BFCO_RPPS, INT_CDTA_BFCO_RPPS, INT_DEBT_EMDA_PLTAR, INT_CDTA_EMDA_PLTAR, ID5_DEBT_DIV_CSDD, ID5_DEBT_EXTA, ID6_DEBT_DRTO_RCBR, ID6_DEBT_GRTIA, ID4_DEBT_PPP, ID6_DEBT_PCTIO, ID6_DEBT_TCE, ID6_DEBT_CGE, ID5_CDTA_DIV_CSDD, ID5_CDTA_EXTA, ID6_CDTA_DRTO_RCBR, ID6_CDTA_GRTIA, ID4_CDTA_PPP, ID6_CDTA_PCTIO, ID6_CDTA_TCE, ID6_CDTA_CGE, ID4_DEBT_ID_CO, ID4_CDTA_ID_CO) values";
+
+    const gap14Nulls = "null, null, null, null, null, null, null, null, null, null, null, null, null, null";
+    const tail28Nulls = "null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null";
+
+    const mapDiff8323 = {};
+    const mapRes1125 = {}; // Mantive o nome da variável mas ela agora armazena 1125 e 1126
+
+    dadosProcessadosGlobal.forEach(item => {
+        if(item.tipo === 'filha' && item.pai) {
+            if (item.pai.startsWith('8323')) {
+                mapDiff8323[item.conta] = item.calcDiff;
+            }
+            // ATUALIZAÇÃO: Incluído 1126 no mapeamento
+            if (item.pai.startsWith('1125') || item.pai.startsWith('1126')) {
+                mapRes1125[item.conta] = item.calcResEsperado;
+            }
+        }
+    });
+
+    dadosProcessadosGlobal.forEach(item => {
+        
+        const contaOito = item.conta;
+        const pai = item.pai || "";
+        const idFormatado = String(sequencial).padStart(5, '0');
+
+        // REGRA 1
+        if (item.tipo === 'filha' && pai.startsWith('1')) {
+            const rawDiff = item.calcDiff;
+            const absDiff = Math.abs(rawDiff);
+
+            if (absDiff > 0.001) {
+                const valorSQL = absDiff.toFixed(2); 
+                
+                if (!mapDePara[pai]) contasSemDePara.add(pai);
+                const codigoReduzidoPai = mapDePara[pai] || pai; 
+
+                // --- AJUSTE: USA 'PAI' PARA A PRIMEIRA CONTA E 'contaOito' PARA A SEGUNDA ---
+                const sql1 = `${insertHeaderPat} ('${empId}', '2025', '${idFormatado}', '${dataFormatada}', 'AJUSTE CONTA PATRIMONIAL ${pai} E CONTA RECEITA ${contaOito}', ${valorSQL}, null, 'N', 'N');`;
+                
+                let sql2 = "";
+                if (rawDiff > 0) {
+                      // Positivo: Credit populated
+                      sql2 = `${insertHeaderEvto} ('${empId}', '2025', '${idFormatado}', '0001', '001862', '05440', '${codigoReduzidoPai}', null, null, null, '${contaOito}', null, null, null, null, null, null, null, null, null, null, null, null, '${empId}', ${gap14Nulls}, null, 'P', ${tail28Nulls});`;
+                } else {
+                      // Negativo: Debt populated
+                      sql2 = `${insertHeaderEvto} ('${empId}', '2025', '${idFormatado}', '0001', '001858', '${codigoReduzidoPai}', '03028', null, null, '${contaOito}', null, null, null, null, null, null, null, null, null, null, null, null, null, '${empId}', ${gap14Nulls}, 'P', null, ${tail28Nulls});`;
+                }
+                
+                sqlBuffer += `-- REGRA 1 (Pai ${pai} -> ${codigoReduzidoPai})\n` + sql1 + "\n" + sql2 + "\n\n";
+                sequencial++;
+            }
+        }
+
+        // REGRA 2
+        if (item.tipo === 'filha' && pai.startsWith('8323')) {
+            
+            let contaCredito = "";
+            if (pai === "832319900") {
+                contaCredito = "732110000";
+            } else if (pai === "832329900") {
+                contaCredito = "732120000";
+            }
+
+            if (contaCredito !== "") {
+
+                let crossValue = 0;
+                let hasValue = false;
+
+                if (mapRes1125[contaOito] !== undefined && mapDiff8323[contaOito] !== undefined) {
+                      crossValue = mapRes1125[contaOito] + mapDiff8323[contaOito];
+                      hasValue = true;
+                } else if (mapRes1125[contaOito] !== undefined && pai.startsWith('8323')) {
+                      crossValue = mapRes1125[contaOito] + item.calcDiff;
+                      hasValue = true;
+                }
+
+                const absCross = Math.abs(crossValue);
+
+                if (hasValue && absCross > 0.001) {
+                    const valorSQL = absCross.toFixed(2);
+                    
+                    const sql1 = `${insertHeaderPat} ('${empId}', '2025', '${idFormatado}', '${dataFormatada}', 'AJUSTE CONTA CONTROLE DÍVIDA ATIVA ${contaOito}', ${valorSQL}, null, 'N', 'N');`;
+
+                    if (!mapDePara[pai]) contasSemDePara.add(pai);
+                    if (!mapDePara[contaCredito]) contasSemDePara.add(contaCredito);
+
+                    let codeDebito = "";
+                    let codeCredito = "";
+                    let grupo = "";
+
+                    if (crossValue > 0) {
+                        grupo = '001872';
+                        codeDebito = mapDePara[contaCredito] || contaCredito;
+                        codeCredito = mapDePara[pai] || pai;
+                    } else {
+                        grupo = '001873';
+                        codeDebito = mapDePara[pai] || pai;
+                        codeCredito = mapDePara[contaCredito] || contaCredito;
+                    }
+
+                    const sql2 = `${insertHeaderEvto} ('${empId}', '2025', '${idFormatado}', '0001', '${grupo}', '${codeDebito}', '${codeCredito}', null, null, '${contaOito}', '${contaOito}', null, null, null, null, null, null, null, null, null, null, null, null, '${empId}', ${gap14Nulls}, 'P', 'P', ${tail28Nulls});`;
+
+                    sqlBuffer += `-- REGRA 2 (Pai ${pai} -> ${codeDebito})\n` + sql1 + "\n" + sql2 + "\n\n";
+                    sequencial++;
+                }
+            }
+        }
+    });
+
+    if (contasSemDePara.size > 0) {
+        const listaFaltantes = [...contasSemDePara].join("\n");
+        document.getElementById('missingOutput').value = listaFaltantes;
+        document.getElementById('missingModal').style.display = 'block';
+    } else {
+        abrirSQLModal();
+    }
+
+    if (sqlBuffer === "") {
+        sqlBuffer = "-- Nenhum registro gerado (verifique se há diferenças nos grupos 1 ou 8323).";
+    }
+
+    document.getElementById('sqlOutput').value = sqlBuffer;
+}
+
+function abrirSQLModal() {
+    document.getElementById('missingModal').style.display = 'none';
+    document.getElementById('sqlModal').style.display = 'block';
+}
+
+function copiarMissing() {
+    const copyText = document.getElementById("missingOutput");
+    copyText.select();
+    copyText.setSelectionRange(0, 99999); 
+    navigator.clipboard.writeText(copyText.value);
+    alert("Lista de contas copiadas!");
+}
+
+function copiarSQL() {
+    const copyText = document.getElementById("sqlOutput");
+    copyText.select();
+    copyText.setSelectionRange(0, 99999); 
+    navigator.clipboard.writeText(copyText.value);
+    alert("SQL copiado para a área de transferência!");
+}
+
+window.onclick = function(event) {
+    const modal = document.getElementById('sqlModal');
+    const modalMissing = document.getElementById('missingModal');
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+    if (event.target == modalMissing) {
+        modalMissing.style.display = "none";
+    }
+}
+</script>
+
+</body>
+</html>
