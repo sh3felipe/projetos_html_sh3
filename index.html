@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Unificado - 15 Módulos</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f0f2f5;
+            overflow: hidden;
+        }
+
+        /* MENU DE ABAS */
+        .tab-menu {
+            display: flex;
+            background-color: #1a1a1a;
+            padding: 10px 10px 0 10px;
+            gap: 5px;
+            overflow-x: auto; 
+            white-space: nowrap;
+            border-bottom: 2px solid #007bff;
+        }
+
+        /* Estilo da barra de rolagem do menu */
+        .tab-menu::-webkit-scrollbar {
+            height: 6px;
+        }
+        .tab-menu::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 10px;
+        }
+
+        .tab-button {
+            padding: 12px 20px;
+            border: none;
+            background-color: #333;
+            color: #aaa;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .tab-button:hover {
+            background-color: #444;
+            color: #fff;
+        }
+
+        .tab-button.active {
+            background-color: #ffffff;
+            color: #1a1a1a;
+        }
+
+        /* CONTAINER DO CONTEÚDO */
+        .content-container {
+            flex-grow: 1;
+            background-color: white;
+            border: none;
+            position: relative;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: none;
+        }
+
+        iframe.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="tab-menu">
+        <button class="tab-button active" onclick="switchTab(event, 'f1')">Almoxarifado</button>
+        <button class="tab-button" onclick="switchTab(event, 'f2')">Arrecadação</button>
+        <button class="tab-button" onclick="switchTab(event, 'f3')">Projeto 3</button>
+        <button class="tab-button" onclick="switchTab(event, 'f4')">Projeto 4</button>
+        <button class="tab-button" onclick="switchTab(event, 'f5')">Projeto 5</button>
+        <button class="tab-button" onclick="switchTab(event, 'f6')">Projeto 6</button>
+        <button class="tab-button" onclick="switchTab(event, 'f7')">Projeto 7</button>
+        <button class="tab-button" onclick="switchTab(event, 'f8')">Projeto 8</button>
+        <button class="tab-button" onclick="switchTab(event, 'f9')">Projeto 9</button>
+        <button class="tab-button" onclick="switchTab(event, 'f10')">Projeto 10</button>
+        <button class="tab-button" onclick="switchTab(event, 'f11')">Projeto 11</button>
+        <button class="tab-button" onclick="switchTab(event, 'f12')">Projeto 12</button>
+        <button class="tab-button" onclick="switchTab(event, 'f13')">Projeto 13</button>
+        <button class="tab-button" onclick="switchTab(event, 'f14')">Projeto 14</button>
+        <button class="tab-button" onclick="switchTab(event, 'f15')">Projeto 15</button>
+    </div>
+
+    <div class="content-container">
+        <iframe id="f1" src="Almoxarifado x Contabilidade - Conciliação.html" class="active"></iframe>
+        <iframe id="f2" src="Arrecadação x Contabilidade - Conciliação.html"></iframe>
+        <iframe id="f3" src="projeto3.html"></iframe>
+        <iframe id="f4" src="projeto4.html"></iframe>
+        <iframe id="f5" src="projeto5.html"></iframe>
+        <iframe id="f6" src="projeto6.html"></iframe>
+        <iframe id="f7" src="projeto7.html"></iframe>
+        <iframe id="f8" src="projeto8.html"></iframe>
+        <iframe id="f9" src="projeto9.html"></iframe>
+        <iframe id="f10" src="projeto10.html"></iframe>
+        <iframe id="f11" src="projeto11.html"></iframe>
+        <iframe id="f12" src="projeto12.html"></iframe>
+        <iframe id="f13" src="projeto13.html"></iframe>
+        <iframe id="f14" src="projeto14.html"></iframe>
+        <iframe id="f15" src="projeto15.html"></iframe>
+    </div>
+
+    <script>
+        function switchTab(event, frameId) {
+            // Remove active de todos os iframes
+            const frames = document.querySelectorAll('iframe');
+            frames.forEach(f => f.classList.remove('active'));
+
+            // Remove active de todos os botões
+            const buttons = document.querySelectorAll('.tab-button');
+            buttons.forEach(b => b.classList.remove('active'));
+
+            // Ativa o iframe e o botão clicado
+            const targetFrame = document.getElementById(frameId);
+            if (targetFrame) {
+                targetFrame.classList.add('active');
+            }
+            event.currentTarget.classList.add('active');
+        }
+    </script>
+
+</body>
+</html>
